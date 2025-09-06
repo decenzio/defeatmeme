@@ -3,12 +3,14 @@ pragma solidity ^0.8.20;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 
 /**
  * @title PlanetNFT
  * @notice Simple Planet NFT - one per wallet, users mint directly
  */
-contract PlanetNFT is ERC721, Ownable {
+contract PlanetNFT is ERC2771Context, ERC721, Ownable {
     // Each EOA can hold at most one planet; 0 means none.
     mapping(address => uint256) public ownedPlanet;
 
@@ -29,9 +31,10 @@ contract PlanetNFT is ERC721, Ownable {
 
     event PlanetMinted(address indexed owner, uint256 indexed tokenId);
 
-    constructor(string memory baseURI) 
-    ERC721("DefeatMeme Planet", "PLANET") 
+    constructor(string memory baseURI, address trustedForwarder)
+    ERC721("DefeatMeme Planet", "PLANET")
     Ownable()
+    ERC2771Context(trustedForwarder)
     {
         _baseTokenURI = baseURI;
     }
@@ -64,13 +67,14 @@ contract PlanetNFT is ERC721, Ownable {
      */
     function mint() external payable returns (uint256 tokenId) {
         require(msg.value >= mintPrice, "Planet: insufficient payment");
-        require(ownedPlanet[msg.sender] == 0, "Planet: already own a planet");
-        
+        address sender = _msgSender();
+        require(ownedPlanet[sender] == 0, "Planet: already own a planet");
+
         tokenId = _nextId++;
-        _safeMint(msg.sender, tokenId);
-        ownedPlanet[msg.sender] = tokenId;
-        
-        emit PlanetMinted(msg.sender, tokenId);
+        _safeMint(sender, tokenId);
+        ownedPlanet[sender] = tokenId;
+
+        emit PlanetMinted(sender, tokenId);
     }
 
     function getPlanetIdByOwner(address owner) external view returns (uint256) {
@@ -131,5 +135,33 @@ contract PlanetNFT is ERC721, Ownable {
 
         (bool success, ) = payable(owner()).call{value: balance}("");
         require(success, "Planet: withdrawal failed");
+    }
+
+    // --- ERC2771 overrides ---
+    function _msgSender()
+        internal
+        view
+        override(Context, ERC2771Context)
+        returns (address sender)
+    {
+        return ERC2771Context._msgSender();
+    }
+
+    function _msgData()
+        internal
+        view
+        override(Context, ERC2771Context)
+        returns (bytes calldata)
+    {
+        return ERC2771Context._msgData();
+    }
+
+    function _contextSuffixLength()
+        internal
+        view
+        override(Context, ERC2771Context)
+        returns (uint256)
+    {
+        return ERC2771Context._contextSuffixLength();
     }
 }

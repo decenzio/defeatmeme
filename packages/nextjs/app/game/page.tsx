@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { useAccount, usePublicClient } from "wagmi";
+import { encodeFunctionData } from "viem";
+import { useAccount, usePublicClient, useSignTypedData } from "wagmi";
 import BettingCard from "~~/components/custom/BettingCard";
+import deployedContracts from "~~/contracts/deployedContracts";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 
 interface Projectile {
@@ -34,9 +36,18 @@ const MEME_IMAGES = [
 
 const WAVE_INTERVAL_MS = 3500;
 
+// --- Chain/Contracts setup (typed, no .default) ---
+const RAW_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 31337);
+type DeployedContracts = typeof deployedContracts;
+type DeployedChainId = keyof DeployedContracts;
+const CHAIN_ID = (RAW_CHAIN_ID in deployedContracts ? RAW_CHAIN_ID : 31337) as DeployedChainId;
+const CHAIN_ID_NUM = Number(CHAIN_ID);
+const gameEngine = deployedContracts[CHAIN_ID].GameEngine;
+
 export default function GamePage() {
   const { address } = useAccount();
   const publicClient = usePublicClient();
+  const { signTypedDataAsync } = useSignTypedData();
 
   const { data: enemyTypesCount } = useScaffoldReadContract({
     contractName: "GameEngine",
@@ -107,7 +118,7 @@ export default function GamePage() {
     for (let row = 0; row < rows; row++) {
       const idx = spawnPtr + row;
       if (idx >= schedule.length) break;
-      const typeIdx = Number(schedule[idx]);
+      const typeIdx = Number(schedule[idx] as any);
       const image = MEME_IMAGES[typeIdx % MEME_IMAGES.length];
       newEnemies.push({
         id: nextEnemyId + row,
@@ -134,16 +145,90 @@ export default function GamePage() {
     setSpawnPtr(0);
     killedEnemyIdsRef.current.clear();
     setGameActive(false);
-    const txHash = await writeGameAsync({ functionName: "startGame" });
-    if (!publicClient || !txHash) {
-      // Unable to confirm tx; bail out early
-      setGameActive(true);
-      return;
-    }
+
+    // Prepare meta-tx for startGame()
     try {
-      // Ensure tx is mined before reading
-      await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
-    } catch {}
+      const data = encodeFunctionData({
+        abi: gameEngine.abi as any,
+        functionName: "startGame",
+        args: [],
+      });
+      const engine = gameEngine.address as `0x${string}`;
+
+      // fetch forwarder and nonce
+      const fw = await fetch(`/api/relay/forwarder?chainId=${CHAIN_ID_NUM}`);
+      const { address: forwarder } = await fw.json();
+      if (!forwarder) throw new Error("Forwarder not found");
+      const nonce = await publicClient!.readContract({
+        address: forwarder as `0x${string}`,
+        abi: [
+          {
+            inputs: [{ name: "from", type: "address" }],
+            name: "getNonce",
+            outputs: [{ name: "", type: "uint256" }],
+            stateMutability: "view",
+            type: "function",
+          },
+        ] as const,
+        functionName: "getNonce",
+        args: [address as `0x${string}`],
+      });
+
+      const req = {
+        from: address as `0x${string}`,
+        to: engine,
+        value: 0n,
+        gas: 500_000n,
+        nonce: nonce as bigint,
+        data: data as `0x${string}`,
+      } as const;
+
+      const domain = {
+        name: "MinimalForwarder",
+        version: "0.0.1",
+        chainId: BigInt(CHAIN_ID_NUM),
+        verifyingContract: forwarder as `0x${string}`,
+      } as const;
+      const types = {
+        ForwardRequest: [
+          { name: "from", type: "address" },
+          { name: "to", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "gas", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+          { name: "data", type: "bytes" },
+        ],
+      } as const;
+      const signature = await signTypedDataAsync({ domain, types, primaryType: "ForwardRequest", message: req as any });
+
+      const res = await fetch(`/api/relay/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chainId: CHAIN_ID_NUM,
+          request: {
+            from: req.from,
+            to: req.to,
+            value: req.value.toString(),
+            gas: req.gas.toString(),
+            nonce: req.nonce.toString(),
+            data: req.data,
+          },
+          signature,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Relay failed");
+    } catch {
+      // fallback to direct tx if relay fails
+      const txHash = await writeGameAsync({ functionName: "startGame" });
+      if (publicClient && txHash) {
+        try {
+          await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+        } catch {}
+      }
+    }
+
     // Wait for session to report active
     try {
       for (let i = 0; i < 12; i++) {
@@ -171,7 +256,7 @@ export default function GamePage() {
         spawnWave();
       }
     } catch {}
-  }, [address, publicClient, refetchSchedule, refetchSession, spawnWave, writeGameAsync]);
+  }, [address, publicClient, refetchSchedule, refetchSession, signTypedDataAsync, spawnWave, writeGameAsync]);
 
   const submit = useCallback(async () => {
     if (!address) return;
@@ -180,12 +265,88 @@ export default function GamePage() {
     try {
       const len = enemyTypesCount ? Number(enemyTypesCount) : MEME_IMAGES.length;
       const arr = new Array(len).fill(0).map((_, i) => Number(counts[i] || 0));
-      await writeGameAsync({ functionName: "submitResults", args: [arr] });
+      try {
+        const data = encodeFunctionData({
+          abi: gameEngine.abi as any,
+          functionName: "submitResults",
+          args: [arr],
+        });
+        const engine = gameEngine.address as `0x${string}`;
+
+        const fw = await fetch(`/api/relay/forwarder?chainId=${CHAIN_ID_NUM}`);
+        const { address: forwarder } = await fw.json();
+        if (!forwarder) throw new Error("Forwarder not found");
+        const nonce = await publicClient!.readContract({
+          address: forwarder as `0x${string}`,
+          abi: [
+            {
+              inputs: [{ name: "from", type: "address" }],
+              name: "getNonce",
+              outputs: [{ name: "", type: "uint256" }],
+              stateMutability: "view",
+              type: "function",
+            },
+          ] as const,
+          functionName: "getNonce",
+          args: [address as `0x${string}`],
+        });
+        const req = {
+          from: address as `0x${string}`,
+          to: engine,
+          value: 0n,
+          gas: 800_000n,
+          nonce: nonce as bigint,
+          data: data as `0x${string}`,
+        } as const;
+        const domain = {
+          name: "MinimalForwarder",
+          version: "0.0.1",
+          chainId: BigInt(CHAIN_ID_NUM),
+          verifyingContract: forwarder as `0x${string}`,
+        } as const;
+        const types = {
+          ForwardRequest: [
+            { name: "from", type: "address" },
+            { name: "to", type: "address" },
+            { name: "value", type: "uint256" },
+            { name: "gas", type: "uint256" },
+            { name: "nonce", type: "uint256" },
+            { name: "data", type: "bytes" },
+          ],
+        } as const;
+        const signature = await signTypedDataAsync({
+          domain,
+          types,
+          primaryType: "ForwardRequest",
+          message: req as any,
+        });
+
+        const res = await fetch(`/api/relay/execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chainId: CHAIN_ID_NUM,
+            request: {
+              from: req.from,
+              to: req.to,
+              value: req.value.toString(),
+              gas: req.gas.toString(),
+              nonce: req.nonce.toString(),
+              data: req.data,
+            },
+            signature,
+          }),
+        });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || "Relay failed");
+      } catch {
+        await writeGameAsync({ functionName: "submitResults", args: [arr] });
+      }
       setGameActive(false);
     } finally {
       setSubmitting(false);
     }
-  }, [address, counts, enemyTypesCount, schedule, writeGameAsync]);
+  }, [address, counts, enemyTypesCount, schedule, writeGameAsync, publicClient, signTypedDataAsync]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -314,13 +475,13 @@ export default function GamePage() {
           setCounts(prev => {
             const next = [...prev];
             Object.entries(countUpdates).forEach(([idx, increment]) => {
-              next[parseInt(idx)] = (next[parseInt(idx)] || 0) + increment;
+              next[parseInt(idx)] = (next[parseInt(idx)] || 0) + (increment as number);
             });
             return next;
           });
         }
 
-        // Mark newly killed enemies to avoid double counting due to concurrent frames/loops
+        // Mark newly killed enemies to avoid double counting
         if (newlyKilledIds.length > 0) {
           newlyKilledIds.forEach(id => killedEnemyIdsRef.current.add(id));
         }
@@ -399,14 +560,7 @@ export default function GamePage() {
         {/* Projectiles */}
         {projectiles.map(projectile => (
           <div key={projectile.id} className="absolute" style={{ left: `${projectile.x}px`, top: `${projectile.y}px` }}>
-            <Image
-              src="/game/shoot2.webp"
-              alt="Projectile"
-              width={40}
-              height={40}
-              className="object-contain"
-              // style={{ transform: "rotate(90deg)" }}
-            />
+            <Image src="/game/shoot2.webp" alt="Projectile" width={40} height={40} className="object-contain" />
           </div>
         ))}
 
