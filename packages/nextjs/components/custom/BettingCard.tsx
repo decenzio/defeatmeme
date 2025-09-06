@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import Image from "next/image";
 import { formatEther, parseEther } from "viem";
 import { useAccount } from "wagmi";
@@ -20,7 +20,7 @@ const MEME_IMAGES = [
   "trolllogo.webp",
 ];
 
-export default function BettingCard() {
+function BettingCard() {
   const { address } = useAccount();
   const [selectedCoin, setSelectedCoin] = useState<number>(0);
   const [betAmount, setBetAmount] = useState<string>("0.01");
@@ -48,6 +48,7 @@ export default function BettingCard() {
     contractName: "GameEngine",
     functionName: "getDayInfo",
     args: [BigInt(currentDayId)],
+    watch: false,
   });
 
   // Read user's current stakes for today
@@ -55,6 +56,7 @@ export default function BettingCard() {
     contractName: "GameEngine",
     functionName: "getUserStake",
     args: [BigInt(currentDayId), address as `0x${string}`],
+    watch: false,
   });
 
   // Read fee basis points
@@ -69,6 +71,7 @@ export default function BettingCard() {
     functionName: "hasClaimed",
     args: [BigInt(currentDayId), address as `0x${string}`],
     query: { enabled: Boolean(address) },
+    watch: false,
   });
 
   // Read the total winners' stake for the day (0 means no winners)
@@ -76,6 +79,7 @@ export default function BettingCard() {
     contractName: "GameEngine",
     functionName: "dayWinnersStake",
     args: [BigInt(currentDayId)],
+    watch: false,
   });
 
   const { writeContractAsync: writeGameAsync, isMining } = useScaffoldWriteContract({ contractName: "GameEngine" });
@@ -414,3 +418,5 @@ export default function BettingCard() {
     </div>
   );
 }
+
+export default memo(BettingCard);

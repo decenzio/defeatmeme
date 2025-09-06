@@ -1,12 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { encodeFunctionData } from "viem";
 import { useAccount, usePublicClient, useSignTypedData } from "wagmi";
-import BettingCard from "~~/components/custom/BettingCard";
 import deployedContracts from "~~/contracts/deployedContracts";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+
+const BettingCard = dynamic(() => import("~~/components/custom/BettingCard"), {
+  ssr: false,
+  loading: () => <div className="py-8 px-4">Loading...</div>,
+});
 
 interface Projectile {
   id: number;
@@ -35,6 +40,8 @@ const MEME_IMAGES = [
 ];
 
 const WAVE_INTERVAL_MS = 3500;
+const SHOOT_COOLDOWN_MS = 250;
+const MAX_ACTIVE_PROJECTILES = 8;
 
 // --- Chain/Contracts setup (typed, no .default) ---
 const RAW_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? 31337);
@@ -52,6 +59,7 @@ export default function GamePage() {
   const { data: enemyTypesCount } = useScaffoldReadContract({
     contractName: "GameEngine",
     functionName: "enemyTypesCount",
+    watch: false,
   });
 
   const { refetch: refetchSession } = useScaffoldReadContract({
@@ -59,6 +67,7 @@ export default function GamePage() {
     functionName: "getActiveSession",
     args: [address as `0x${string}`],
     query: { enabled: Boolean(address) },
+    watch: false,
   });
 
   const [gameActive, setGameActive] = useState(false);
@@ -68,6 +77,7 @@ export default function GamePage() {
     functionName: "getScheduleFor",
     args: [address as `0x${string}`],
     query: { enabled: Boolean(address) },
+    watch: false,
   });
 
   const { writeContractAsync: writeGameAsync } = useScaffoldWriteContract({ contractName: "GameEngine" });
@@ -85,6 +95,8 @@ export default function GamePage() {
   const projectilesRef = useRef<Projectile[]>([]);
   const enemiesRef = useRef<Enemy[]>([]);
   const killedEnemyIdsRef = useRef<Set<number>>(new Set());
+  const frameIndexRef = useRef(0);
+  const lastShotAtRef = useRef<number>(0);
 
   const totalScheduled = useMemo(() => (Array.isArray(schedule) ? schedule.length : 0), [schedule]);
   const totalKilled = useMemo(() => counts.reduce((a, b) => a + b, 0), [counts]);
@@ -97,14 +109,18 @@ export default function GamePage() {
   );
 
   const shoot = useCallback(() => {
-    setProjectiles(prev => [
-      ...prev,
-      {
-        id: nextProjectileId,
-        x: 100,
-        y: (catPosition / 100) * window.innerHeight + 40,
-      },
-    ]);
+    const now = Date.now();
+    if (now - lastShotAtRef.current < SHOOT_COOLDOWN_MS) return;
+    if (projectilesRef.current.length >= MAX_ACTIVE_PROJECTILES) return;
+    lastShotAtRef.current = now;
+    const newProjectile = {
+      id: nextProjectileId,
+      x: 100,
+      y: (catPosition / 100) * window.innerHeight + 40,
+    };
+    setProjectiles(prev => [...prev, newProjectile]);
+    // Keep ref in sync to avoid waiting for commit frame
+    projectilesRef.current = [...projectilesRef.current, newProjectile];
     setNextProjectileId(prev => prev + 1);
   }, [catPosition, nextProjectileId]);
 
@@ -130,6 +146,8 @@ export default function GamePage() {
     }
     if (newEnemies.length > 0) {
       setEnemies(prev => [...prev, ...newEnemies]);
+      // Keep ref in sync to avoid waiting for commit frame
+      enemiesRef.current = [...enemiesRef.current, ...newEnemies];
       setNextEnemyId(prev => prev + newEnemies.length);
       setSpawnPtr(prev => prev + newEnemies.length);
     }
@@ -144,6 +162,11 @@ export default function GamePage() {
     setNextEnemyId(0);
     setSpawnPtr(0);
     killedEnemyIdsRef.current.clear();
+    lastShotAtRef.current = 0;
+    // Reset in-memory refs and cat position to avoid stale state
+    projectilesRef.current = [];
+    enemiesRef.current = [];
+    setCatPosition(50);
     setGameActive(false);
 
     // Prepare meta-tx for startGame()
@@ -389,17 +412,23 @@ export default function GamePage() {
     };
   }, [shoot]);
 
+  // Preload frequently used images to avoid decode jank during gameplay
   useEffect(() => {
-    const gameLoop = setInterval(() => {
-      setCatPosition(prev => {
-        let np = prev;
-        if (keys.up) np = Math.max(0, np - 1);
-        if (keys.down) np = Math.min(90, np + 1);
-        return np;
+    try {
+      const sources = [
+        ...MEME_IMAGES.map(img => `/game/memes/${img}`),
+        "/cat/cat1.png",
+        "/game/shoot2.webp",
+        "/game/main-bg.jpg",
+      ];
+      sources.forEach(src => {
+        const i = new window.Image();
+        i.decoding = "async";
+        i.loading = "eager" as any;
+        i.src = src;
       });
-    }, 16);
-    return () => clearInterval(gameLoop);
-  }, [keys]);
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!gameActive || !Array.isArray(schedule) || schedule.length === 0) return;
@@ -419,58 +448,76 @@ export default function GamePage() {
   useEffect(() => {
     let animationId: number;
     const animate = () => {
-      setProjectiles(prev => {
-        const moved = prev.map(p => ({ ...p, x: p.x + 3 })).filter(p => p.x < window.innerWidth + 50);
-        projectilesRef.current = moved;
-        return moved;
+      // Update cat movement in the same frame loop to avoid a separate interval
+      setCatPosition(prev => {
+        let np = prev;
+        if (keys.up) np = Math.max(0, np - 1);
+        if (keys.down) np = Math.min(90, np + 1);
+        return np;
       });
 
-      setEnemies(prev => {
-        const movedEnemies = prev.map(e => ({ ...e, x: e.x - 2 })).filter(e => e.x > -100);
+      // Move entities based on refs to avoid forcing a re-render every frame
+      const movedProjectiles = projectilesRef.current
+        .map(p => ({ ...p, x: p.x + 3 }))
+        .filter(p => p.x < window.innerWidth + 50);
 
-        enemiesRef.current = movedEnemies;
+      const movedEnemies = enemiesRef.current.map(e => ({ ...e, x: e.x - 2 })).filter(e => e.x > -100);
 
-        const hitProjectileIds = new Set<number>();
-        const hitEnemyIds = new Set<number>();
+      const hitProjectileIds = new Set<number>();
+      const hitEnemyIds = new Set<number>();
 
-        projectilesRef.current.forEach(projectile => {
-          movedEnemies.forEach(enemy => {
-            const projectileLeft = projectile.x;
-            const projectileRight = projectile.x + 100;
-            const projectileTop = projectile.y;
-            const projectileBottom = projectile.y + 100;
+      movedProjectiles.forEach(projectile => {
+        movedEnemies.forEach(enemy => {
+          const projectileLeft = projectile.x;
+          const projectileRight = projectile.x + 100;
+          const projectileTop = projectile.y;
+          const projectileBottom = projectile.y + 100;
 
-            const enemyLeft = enemy.x;
-            const enemyRight = enemy.x + 80;
-            const enemyTop = enemy.y;
-            const enemyBottom = enemy.y + 80;
+          const enemyLeft = enemy.x;
+          const enemyRight = enemy.x + 80;
+          const enemyTop = enemy.y;
+          const enemyBottom = enemy.y + 80;
 
-            if (
-              projectileLeft < enemyRight &&
-              projectileRight > enemyLeft &&
-              projectileTop < enemyBottom &&
-              projectileBottom > enemyTop
-            ) {
-              hitProjectileIds.add(projectile.id);
-              hitEnemyIds.add(enemy.id);
-            }
-          });
-        });
-
-        // Collect all count updates, but only for enemies not already killed
-        const countUpdates: { [key: number]: number } = {};
-        const newlyKilledIds: number[] = [];
-        hitEnemyIds.forEach(enemyId => {
-          if (killedEnemyIdsRef.current.has(enemyId)) return;
-          const enemy = movedEnemies.find(e => e.id === enemyId);
-          if (enemy) {
-            const idx = enemy.typeIdx % MEME_IMAGES.length;
-            countUpdates[idx] = (countUpdates[idx] || 0) + 1;
-            newlyKilledIds.push(enemyId);
+          if (
+            projectileLeft < enemyRight &&
+            projectileRight > enemyLeft &&
+            projectileTop < enemyBottom &&
+            projectileBottom > enemyTop
+          ) {
+            hitProjectileIds.add(projectile.id);
+            hitEnemyIds.add(enemy.id);
           }
         });
+      });
 
-        // Apply all count updates at once
+      // Collect count updates for newly killed enemies
+      const countUpdates: { [key: number]: number } = {};
+      const newlyKilledIds: number[] = [];
+      hitEnemyIds.forEach(enemyId => {
+        if (killedEnemyIdsRef.current.has(enemyId)) return;
+        const enemy = movedEnemies.find(e => e.id === enemyId);
+        if (enemy) {
+          const idx = enemy.typeIdx % MEME_IMAGES.length;
+          countUpdates[idx] = (countUpdates[idx] || 0) + 1;
+          newlyKilledIds.push(enemyId);
+        }
+      });
+
+      // Update refs after filtering out hits
+      projectilesRef.current = movedProjectiles.filter(p => !hitProjectileIds.has(p.id));
+      enemiesRef.current = movedEnemies.filter(e => !hitEnemyIds.has(e.id));
+
+      // Mark newly killed
+      if (newlyKilledIds.length > 0) {
+        newlyKilledIds.forEach(id => killedEnemyIdsRef.current.add(id));
+      }
+
+      // Commit visual state every other frame to reduce render work
+      frameIndexRef.current = (frameIndexRef.current + 1) % 2;
+      const shouldCommit = frameIndexRef.current === 0;
+      if (shouldCommit) {
+        setProjectiles(projectilesRef.current);
+        setEnemies(enemiesRef.current);
         if (Object.keys(countUpdates).length > 0) {
           setCounts(prev => {
             const next = [...prev];
@@ -480,23 +527,13 @@ export default function GamePage() {
             return next;
           });
         }
-
-        // Mark newly killed enemies to avoid double counting
-        if (newlyKilledIds.length > 0) {
-          newlyKilledIds.forEach(id => killedEnemyIdsRef.current.add(id));
-        }
-
-        if (hitProjectileIds.size > 0) {
-          setProjectiles(prevProjectiles => prevProjectiles.filter(p => !hitProjectileIds.has(p.id)));
-        }
-        return movedEnemies.filter(e => !hitEnemyIds.has(e.id));
-      });
+      }
 
       animationId = requestAnimationFrame(animate);
     };
     animationId = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animationId);
-  }, []);
+  }, [keys]);
 
   const canSubmit = useMemo(() => {
     if (!gameActive) return false;
@@ -554,26 +591,28 @@ export default function GamePage() {
 
         {/* Cat */}
         <div className="absolute left-8" style={{ top: `${catPosition}%` }}>
-          <Image src="/cat/cat1.png" alt="Player Cat" width={120} height={120} className="object-contain" />
+          <img src="/cat/cat1.png" alt="Player Cat" width={120} height={120} draggable={false} />
         </div>
 
         {/* Projectiles */}
         {projectiles.map(projectile => (
-          <div key={projectile.id} className="absolute" style={{ left: `${projectile.x}px`, top: `${projectile.y}px` }}>
-            <Image src="/game/shoot2.webp" alt="Projectile" width={40} height={40} className="object-contain" />
+          <div
+            key={projectile.id}
+            className="absolute"
+            style={{ transform: `translate3d(${projectile.x}px, ${projectile.y}px, 0)`, willChange: "transform" }}
+          >
+            <img src="/game/shoot2.webp" alt="Projectile" width={40} height={40} draggable={false} />
           </div>
         ))}
 
         {/* Enemies */}
         {enemies.map(enemy => (
-          <div key={enemy.id} className="absolute" style={{ left: `${enemy.x}px`, top: `${enemy.y}px` }}>
-            <Image
-              src={`/game/memes/${enemy.image}`}
-              alt="Enemy Meme"
-              width={80}
-              height={80}
-              className="object-contain"
-            />
+          <div
+            key={enemy.id}
+            className="absolute"
+            style={{ transform: `translate3d(${enemy.x}px, ${enemy.y}px, 0)`, willChange: "transform" }}
+          >
+            <img src={`/game/memes/${enemy.image}`} alt="Enemy Meme" width={80} height={80} draggable={false} />
           </div>
         ))}
 
