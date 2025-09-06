@@ -1,0 +1,126 @@
+.gameContainer {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+.backgroundImage {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-image: url('/game/main-bg.png');
+  transform: rotate(90deg);
+  transform-origin: center center;
+  width: 100vh;
+  height: 100vw;
+  top: 50%;
+  left: 50%;
+  margin-top: -50vw;
+  margin-left: -50vh;
+}
+
+.gameContent {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  height: 100vh;
+}
+
+.leftSide {
+  display: flex;
+  width: 50%;
+  align-items: center;
+  justify-content: flex-start;
+  padding-left: 0;
+  margin-left: 50px;
+}
+
+.rightSide {
+  display: flex;
+  width: 50%;
+  align-items: center;
+  justify-content: center;
+}
+
+.planetContainer {
+  position: relative;
+}
+
+.planetCircle {
+  position: relative;
+  width: 100vh;
+  height: 100vh;
+  border-radius: 50%;
+  border: 8px solid rgb(96 165 250);
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+}
+
+.planetImagesContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  height: 100%;
+  justify-content: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.planetImage {
+  border-radius: 9999px;
+}
+
+.planet1 {
+  transform: rotate(180deg);
+}
+
+.planet2 {
+  transform: translateX(-210px) rotate(90deg);
+}
+
+.planet3 {
+  transform: rotate(0deg);
+}
+
+.orbitalRing {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 2px solid rgb(253 224 71);
+  opacity: 0.5;
+  animation: spin 10s linear infinite;
+}
+
+.catUp {
+  position: absolute;
+  top: 100px;
+  left: 50%;
+  transform: translateX(-50%) rotate(180deg);
+  z-index: 20;
+}
+
+.catDown {
+  position: absolute;
+  bottom: 100px;
+  left: 50%;
+  transform: translateX(-50%) scaleX(-1);
+  z-index: 20;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
