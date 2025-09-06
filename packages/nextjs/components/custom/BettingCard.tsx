@@ -116,12 +116,9 @@ export default function BettingCard() {
   const winnersStakeTyped = winnersStake as bigint | undefined;
 
   return (
-    <div className="relative overflow-hidden">
-      {/* Animated background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-blue-900/20 to-cyan-900/20 animate-pulse"></div>
-
+    <div className="relative">
       {/* Main container */}
-      <div className="relative bg-gradient-to-br from-base-100 via-base-100 to-base-200 rounded-3xl shadow-2xl p-8 max-w-6xl mx-auto border border-primary/20">
+      <div className="relative bg-white/10 backdrop-blur-sm rounded-3xl shadow-2xl p-8 max-w-6xl mx-auto border border-white/20">
         {/* Header with glowing effect */}
         <div className="text-center mb-8 relative">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent blur-xl"></div>

@@ -22,7 +22,7 @@ export const menuLinks: HeaderMenuLink[] = [
   },
   {
     label: "Play",
-    href: "/game",
+    href: "/home",
   },
   {
     label: "Leaderboard",
@@ -93,16 +93,11 @@ export const Header = () => {
           </ul>
         </details>
         <Link href="/" passHref className="hidden lg:flex items-center gap-3 ml-4 mr-8 shrink-0">
-          <div className="flex relative w-10 h-10">
-            <Image alt="Zircuit Cat" className="cursor-pointer rounded-full" fill src="/cat/cat1.png" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-bold leading-tight text-lg bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-              DefeatTheMeme
-            </span>
-            <span className="text-xs text-cyan-400/80">Zircuit Cat Adventures</span>
+          <div className="flex relative w-50 h-10">
+            <Image alt="Logo" className="cursor-pointer rounded-full" fill src="/logo.png" />
           </div>
         </Link>
+
         <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-1">
           <HeaderMenuLinks />
         </ul>

@@ -199,7 +199,7 @@ export default function RegisterCard() {
   });
 
   return (
-    <div className="max-w-md mx-auto p-6 rounded-2xl shadow bg-base-200">
+    <div className="max-w-md mx-auto p-6 rounded-2xl shadow bg-white/10 backdrop-blur-sm border border-white/20">
       <h2 className="text-xl font-bold">🌍 Your Planet NFT</h2>
 
       {!address && <p className="mt-2">Connect your wallet to get started.</p>}

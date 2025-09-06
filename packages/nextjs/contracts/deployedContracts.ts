@@ -51,6 +51,61 @@ const deployedContracts = {
             {
               indexed: true,
               internalType: "address",
+              name: "player",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "planetId",
+              type: "uint256",
+            },
+            {
+              indexed: true,
+              internalType: "uint256",
+              name: "dayId",
+              type: "uint256",
+            },
+            {
+              indexed: false,
+              internalType: "bytes32",
+              name: "seed",
+              type: "bytes32",
+            },
+            {
+              indexed: false,
+              internalType: "uint40",
+              name: "startBlock",
+              type: "uint40",
+            },
+            {
+              indexed: false,
+              internalType: "uint40",
+              name: "endBlock",
+              type: "uint40",
+            },
+            {
+              indexed: false,
+              internalType: "uint8[]",
+              name: "counts",
+              type: "uint8[]",
+            },
+            {
+              indexed: false,
+              internalType: "uint256",
+              name: "totalDefeats",
+              type: "uint256",
+            },
+          ],
+          name: "GameCompleted",
+          type: "event",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
               name: "previousOwner",
               type: "address",
             },
