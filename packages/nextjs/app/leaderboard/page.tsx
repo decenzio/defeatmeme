@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TrophyIcon, UserIcon } from "@heroicons/react/24/outline";
+import { TrophyIcon } from "@heroicons/react/24/outline";
+import { Address } from "~~/components/scaffold-eth";
 import { type LeaderboardEntry, golemDBService } from "~~/services/golemdb/leaderboard";
 import styles from "~~/styles/Leaderboard.module.css";
 
@@ -128,13 +129,10 @@ export default function LeaderboardPage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-3">
-                          <div className="avatar placeholder">
-                            <div className="bg-neutral text-neutral-content rounded-full w-12">
-                              <UserIcon className="h-6 w-6" />
-                            </div>
-                          </div>
                           <div>
-                            <div className="font-bold text-white text-lg">{entry.playerName}</div>
+                            <div className="font-bold text-white text-lg">
+                              {entry.ensName || formatAddress(entry.playerAddress)}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -142,7 +140,9 @@ export default function LeaderboardPage() {
                         <span className="text-2xl font-bold text-green-400">{formatScore(entry.score)}</span>
                       </td>
                       <td>
-                        <span className="font-mono text-gray-300">{formatAddress(entry.playerAddress)}</span>
+                        <div className="flex items-center gap-3">
+                          <Address address={entry.playerAddress as `0x${string}`} size="sm" onlyEnsOrAddress={true} />
+                        </div>
                       </td>
                       <td>
                         <span className="text-gray-300">{entry.date}</span>

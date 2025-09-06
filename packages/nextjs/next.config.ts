@@ -9,6 +9,28 @@ const nextConfig: NextConfig = {
   eslint: {
     ignoreDuringBuilds: process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === "true",
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "metadata.ens.domains",
+        port: "",
+        pathname: "/mainnet/avatar/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.ipfs.w3s.link",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "ipfs.io",
+        port: "",
+        pathname: "/ipfs/**",
+      },
+    ],
+  },
   webpack: config => {
     config.resolve.fallback = { fs: false, net: false, tls: false };
     config.externals.push("pino-pretty", "lokijs", "encoding");
@@ -23,6 +45,26 @@ if (isIpfs) {
   nextConfig.trailingSlash = true;
   nextConfig.images = {
     unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "metadata.ens.domains",
+        port: "",
+        pathname: "/mainnet/avatar/**",
+      },
+      {
+        protocol: "https",
+        hostname: "**.ipfs.w3s.link",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "ipfs.io",
+        port: "",
+        pathname: "/ipfs/**",
+      },
+    ],
   };
 }
 
