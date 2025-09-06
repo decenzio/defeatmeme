@@ -12,7 +12,7 @@ contract GameEngine is Ownable {
 
     uint8 public enemyTypesCount; // client maps [0..enemyTypesCount-1] -> image file
 
-    // Chainlink Price Feed Addresses
+    // Redstone Price Feed Addresses
     AggregatorV3Interface internal ethPriceFeed;
     AggregatorV3Interface internal btcPriceFeed;
     AggregatorV3Interface internal pufEthPriceFeed;
@@ -51,7 +51,7 @@ contract GameEngine is Ownable {
         TOTAL_ENEMIES = uint16(uint256(_waveCount) * uint256(_waveSize));
         TIMEOUT_BLOCKS = _timeoutBlocks;
 
-        // Initialize Chainlink price feeds (only if addresses are valid)
+        // Initialize Redstone price feeds (only if addresses are valid)
         if (_areValidAddresses()) {
             ethPriceFeed = AggregatorV3Interface(0x72266eFcdd0EC7110b44576e5413EF383950EEc2);
             btcPriceFeed = AggregatorV3Interface(0xCfd39de761508A7aCb8C931b959127a1D9d0B3D4);
@@ -119,11 +119,11 @@ contract GameEngine is Ownable {
         }
     }
 
-    function generateEnhancedRandomness() internal view returns (bytes32) {
-        // Get latest prices from Chainlink oracles
+    function generateFunRandomness() internal view returns (bytes32) {
+        // Get latest prices from Redstone oracle
         (int256 ethPrice, int256 btcPrice, int256 pufEthPrice) = getLatestPrices();
 
-        // Combine multiple sources of randomness:
+        // Combine multiple sources of (not)randomness to create one:
         // 1. Previous block hash
         // 2. Current block's prevrandao
         // 3. Player address
@@ -171,9 +171,9 @@ contract GameEngine is Ownable {
             require(block.number > s.startBlock + TIMEOUT_BLOCKS, "active session");
         }
 
-        // Enhanced randomness using Chainlink price feeds + blockchain data
+        // Enhanced randomness using Redstone price feeds + blockchain data
         _nonce++;
-        bytes32 seed = generateEnhancedRandomness();
+        bytes32 seed = generateFunRandomness();
         _activeSession[msg.sender] = Session({ seed: seed, startBlock: uint40(block.number), exists: true });
     }
 
