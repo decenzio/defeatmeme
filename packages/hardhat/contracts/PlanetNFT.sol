@@ -2,33 +2,37 @@
 pragma solidity ^0.8.20;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title PlanetNFT
- * @notice Minimal per-wallet Planet NFT with 2771 meta-tx support.
+ * @notice Simple Planet NFT - one per wallet, users mint directly
  */
-contract PlanetNFT is ERC2771Context, ERC721, AccessControl {
-    bytes32 public constant REGISTRAR_ROLE = keccak256("REGISTRAR_ROLE");
-
+contract PlanetNFT is ERC721, Ownable {
     // Each EOA can hold at most one planet; 0 means none.
     mapping(address => uint256) public ownedPlanet;
 
     uint256 private _nextId = 1;
     string private _baseTokenURI;
+    
+    // Minting price (0 for free minting)
+    uint256 public mintPrice = 0;
+    
+    event PlanetMinted(address indexed owner, uint256 indexed tokenId);
 
-    constructor(address trustedForwarder, string memory baseURI)
-    ERC2771Context(trustedForwarder)
-    ERC721("DefeatMeme Planet", "PLANET")
+    constructor(string memory baseURI) 
+    ERC721("DefeatMeme Planet", "PLANET") 
+    Ownable()
     {
-        _grantRole(DEFAULT_ADMIN_ROLE, _msgSender());
         _baseTokenURI = baseURI;
     }
 
-    function setBaseURI(string calldata newBase) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setBaseURI(string calldata newBase) external onlyOwner {
         _baseTokenURI = newBase;
+    }
+    
+    function setMintPrice(uint256 newPrice) external onlyOwner {
+        mintPrice = newPrice;
     }
 
     function _baseURI() internal view override returns (string memory) {
@@ -36,57 +40,46 @@ contract PlanetNFT is ERC2771Context, ERC721, AccessControl {
     }
 
     /**
-     * @dev Mint a planet for `to`. Reverts if they already have one.
-     *      Callable by GameRegistrar (holder of REGISTRAR_ROLE).
+     * @dev Mint a planet for the caller. Reverts if they already have one.
+     *      Anyone can call this function and mint their own planet.
      */
-    function mintTo(address to) external onlyRole(REGISTRAR_ROLE) returns (uint256 tokenId) {
-        require(ownedPlanet[to] == 0, "Planet: already registered");
+    function mint() external payable returns (uint256 tokenId) {
+        require(msg.value >= mintPrice, "Planet: insufficient payment");
+        require(ownedPlanet[msg.sender] == 0, "Planet: already own a planet");
+        
         tokenId = _nextId++;
-        _safeMint(to, tokenId);
-        ownedPlanet[to] = tokenId;
+        _safeMint(msg.sender, tokenId);
+        ownedPlanet[msg.sender] = tokenId;
+        
+        emit PlanetMinted(msg.sender, tokenId);
     }
 
     function getPlanetIdByOwner(address owner) external view returns (uint256) {
         return ownedPlanet[owner];
     }
-
-    // --- ERC165 / multiple inheritance resolution ---
-
-    function supportsInterface(bytes4 interfaceId)
-    public
-    view
-    override(ERC721, AccessControl)
-    returns (bool)
-    {
-        return super.supportsInterface(interfaceId);
+    
+    /**
+     * @dev Check if an address owns a planet
+     */
+    function hasPlanet(address owner) external view returns (bool) {
+        return ownedPlanet[owner] != 0;
     }
-
-    // --- ERC2771 / Context overrides ---
-
-    function _msgSender()
-    internal
-    view
-    override(Context, ERC2771Context)
-    returns (address sender)
-    {
-        sender = ERC2771Context._msgSender();
+    
+    /**
+     * @dev Get total number of planets minted
+     */
+    function totalSupply() external view returns (uint256) {
+        return _nextId - 1;
     }
-
-    function _msgData()
-    internal
-    view
-    override(Context, ERC2771Context)
-    returns (bytes calldata)
-    {
-        return ERC2771Context._msgData();
-    }
-
-    function _contextSuffixLength()
-    internal
-    view
-    override(Context, ERC2771Context)
-    returns (uint256)
-    {
-        return ERC2771Context._contextSuffixLength();
+    
+    /**
+     * @dev Withdraw contract balance (only owner)
+     */
+    function withdraw() external onlyOwner {
+        uint256 balance = address(this).balance;
+        require(balance > 0, "Planet: no funds to withdraw");
+        
+        (bool success, ) = payable(owner()).call{value: balance}("");
+        require(success, "Planet: withdrawal failed");
     }
 }

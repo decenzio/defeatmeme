@@ -1,4 +1,3 @@
-// deploy/00_forwarder.ts
 import { DeployFunction } from "hardhat-deploy/types";
 import { HardhatRuntimeEnvironment } from "hardhat/types";
 
@@ -7,15 +6,16 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deploy, log } = deployments;
   const { deployer } = await getNamedAccounts();
 
-  log("🚀 Deploying OpenZeppelin MinimalForwarder (OZ v4.9.6) …");
-  await deploy("MinimalForwarder", {
+  const planet = await deploy("PlanetNFT", {
     from: deployer,
-    // NOTE: fully-qualified name points at node_modules
-    contract: "@openzeppelin/contracts/metatx/MinimalForwarder.sol:MinimalForwarder",
-    args: [],
+    args: ["ipfs://YOUR_BASE_CID/"], // You can change this to your IPFS base URI
     log: true,
   });
+
+  log(`✅ PlanetNFT deployed at ${planet.address}`);
+  log(`🌍 Users can now mint planets directly by calling mint() function`);
 };
 
+func.tags = ["PlanetNFT"];
+
 export default func;
-func.tags = ["Forwarder"];
