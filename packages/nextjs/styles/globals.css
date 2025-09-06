@@ -120,8 +120,3 @@
   opacity: 80%;
 }
 
-/* Hide footer on game page */
-.game-page ~ footer,
-body:has(.game-page) footer {
-  display: none !important;
-}

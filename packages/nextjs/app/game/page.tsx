@@ -28,7 +28,7 @@ export default function GamePage() {
 
   return (
     <div
-      className="min-h-screen relative bg-cover bg-center bg-no-repeat"
+      className="h-full w-full relative bg-cover bg-center bg-no-repeat overflow-hidden"
       style={{
         backgroundImage: "url('/game/main-bg.jpg')",
       }}
@@ -44,7 +44,7 @@ export default function GamePage() {
       </div>
 
       {/* Game content */}
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-white drop-shadow-lg mb-4">Hello World</h1>
           <p className="text-white drop-shadow-lg">Use Arrow Keys or WASD to move the cat up and down!</p>

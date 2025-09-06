@@ -15,13 +15,32 @@ import { wagmiConfig } from "~~/services/web3/wagmiConfig";
 
 const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
   useInitializeNativeCurrencyPrice();
+  const [isGamePage, setIsGamePage] = useState(false);
+
+  useEffect(() => {
+    // Check if we're on game page initially
+    setIsGamePage(document.body.classList.contains("game-page"));
+
+    // Watch for changes to body class
+    const observer = new MutationObserver(mutations => {
+      mutations.forEach(mutation => {
+        if (mutation.type === "attributes" && mutation.attributeName === "class") {
+          setIsGamePage(document.body.classList.contains("game-page"));
+        }
+      });
+    });
+
+    observer.observe(document.body, { attributes: true });
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <>
-      <div className="flex flex-col min-h-screen">
+      <div className={`flex flex-col ${isGamePage ? "h-screen overflow-hidden" : "min-h-screen"}`}>
         <Header />
-        <main className="relative flex flex-col flex-1">{children}</main>
-        <Footer />
+        <main className={`relative flex flex-col flex-1 ${isGamePage ? "overflow-hidden" : ""}`}>{children}</main>
+        {!isGamePage && <Footer />}
       </div>
       <Toaster />
     </>
