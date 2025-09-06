@@ -132,6 +132,7 @@ const config: HardhatUserConfig = {
     },
     zircuitGarfieldTestnet: {
       url: "https://garfield-testnet.zircuit.com/",
+      chainId: 48898,
       accounts: [deployerPrivateKey],
     },
   },

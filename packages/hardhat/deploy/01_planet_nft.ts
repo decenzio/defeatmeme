@@ -8,9 +8,16 @@ const func: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   const forwarder = await deployments.get("MinimalForwarder");
 
+  const baseUri = process.env.PLANET_BASE_URI || "ipfs://YOUR_BASE_CID/";
+  if (baseUri.includes("YOUR_BASE_CID") && hre.network.name !== "localhost") {
+    log(
+      `⚠️  PLANET_BASE_URI is not set. Using placeholder base URI. Set PLANET_BASE_URI in .env before deploying to live networks.`,
+    );
+  }
+
   const planet = await deploy("PlanetNFT", {
     from: deployer,
-    args: ["ipfs://YOUR_BASE_CID/", forwarder.address], // baseURI, trustedForwarder
+    args: [baseUri, forwarder.address], // baseURI, trustedForwarder
     log: true,
   });
 
