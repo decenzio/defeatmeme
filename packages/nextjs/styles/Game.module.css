@@ -5,21 +5,14 @@
   overflow: hidden;
 }
 
+
 .backgroundImage {
   position: absolute;
   inset: 0;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  background-image: url('/game/main-bg.png');
-  transform: rotate(90deg);
-  transform-origin: center center;
-  width: 100vh;
-  height: 100vw;
-  top: 50%;
-  left: 50%;
-  margin-top: -50vw;
-  margin-left: -50vh;
+  background-image: url('/game/main-bg.jpg');
 }
 
 .gameContent {
@@ -27,39 +20,43 @@
   z-index: 10;
   display: flex;
   height: 100vh;
+  width: 100%;
 }
 
 .leftSide {
   display: flex;
-  width: 50%;
+  width: 60vh;
   align-items: center;
   justify-content: flex-start;
   padding-left: 0;
-  margin-left: 50px;
+  margin-left: 0;
 }
 
 .rightSide {
   display: flex;
-  width: 50%;
+  flex: 1;
   align-items: center;
   justify-content: center;
 }
 
 .planetContainer {
   position: relative;
+  margin-left: 0;
 }
 
 .planetCircle {
   position: relative;
-  width: 100vh;
+  width: 60vh;
   height: 100vh;
-  border-radius: 50%;
+  border-radius: 0 60vh 60vh 0;
   border: 8px solid rgb(96 165 250);
+  border-left: none;
   background: white;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  margin-left: 0;
 }
 
 .planetImagesContainer {
@@ -84,7 +81,7 @@
 }
 
 .planet2 {
-  transform: translateX(-210px) rotate(90deg);
+  transform: translateX(-100px) rotate(90deg);
 }
 
 .planet3 {
@@ -94,24 +91,25 @@
 .orbitalRing {
   position: absolute;
   inset: 0;
-  border-radius: 9999px;
+  border-radius: 0 9999px 9999px 0;
   border: 2px solid rgb(253 224 71);
+  border-left: none;
   opacity: 0.5;
   animation: spin 10s linear infinite;
 }
 
 .catUp {
   position: absolute;
-  top: 100px;
-  left: 50%;
+  top: 80px;
+  left: 30vh;
   transform: translateX(-50%) rotate(180deg);
   z-index: 20;
 }
 
 .catDown {
   position: absolute;
-  bottom: 100px;
-  left: 50%;
+  bottom: 80px;
+  left: 30vh;
   transform: translateX(-50%) scaleX(-1);
   z-index: 20;
 }

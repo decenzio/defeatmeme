@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { Abi, Address } from "viem";
 import { formatEther } from "viem";
 import { useAccount, useChainId, useReadContract } from "wagmi";
@@ -11,6 +12,7 @@ const ENV_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
 export default function RegisterCard() {
   const { address } = useAccount();
   const activeChainId = useChainId();
+  const router = useRouter();
 
   // Load PlanetNFT contract info
   const { data: planetHook } = useDeployedContractInfo({ contractName: "PlanetNFT" });
@@ -27,9 +29,18 @@ export default function RegisterCard() {
     address: planetAddress,
     abi: planetAbi,
     functionName: "getPlanetIdByOwner",
-    args: address ? [address as Address] : undefined,
+    args: [address],
     query: { enabled: Boolean(address && planetAddress) },
   }) as { data: bigint | undefined; refetch: () => Promise<any> };
+
+  // Check if user has a planet using the dedicated function
+  const { data: hasPlanetFromContract } = useReadContract({
+    address: planetAddress,
+    abi: planetAbi,
+    functionName: "hasPlanet",
+    args: [address],
+    query: { enabled: Boolean(address && planetAddress) },
+  }) as { data: boolean | undefined };
 
   // Read mint price (bigint)
   const { data: mintPrice } = useReadContract({
@@ -44,7 +55,8 @@ export default function RegisterCard() {
     contractName: "PlanetNFT",
   });
 
-  const hasPlanet = !!myPlanetId && myPlanetId !== 0n;
+  // Use the dedicated hasPlanet function first, fallback to ID check
+  const hasPlanet = hasPlanetFromContract ?? (!!myPlanetId && myPlanetId !== 0n);
   const wrongChain = activeChainId !== ENV_CHAIN_ID;
 
   async function mintPlanet() {
@@ -104,6 +116,7 @@ export default function RegisterCard() {
     hasAbi: !!planetAbi,
     userAddress: address,
     myPlanetId: myPlanetId?.toString(),
+    hasPlanetFromContract,
     hasPlanet,
     mintPrice: mintPrice?.toString(),
     wrongChain,
@@ -122,6 +135,9 @@ export default function RegisterCard() {
       {address && hasPlanet && (
         <div className="mt-4 p-4 rounded-lg bg-green-100 dark:bg-green-900">
           <p className="text-green-800 dark:text-green-200">✅ You own Planet NFT #{myPlanetId!.toString()}!</p>
+          <button className="btn btn-success w-full mt-3" onClick={() => router.push("/game")}>
+            🚀 Go to Game
+          </button>
         </div>
       )}
 
