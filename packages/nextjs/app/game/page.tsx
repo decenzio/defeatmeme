@@ -270,13 +270,17 @@ export default function GamePage() {
         await new Promise(r => setTimeout(r, 500));
       }
     } catch {}
-    setGameActive(true);
-    // Kick off first wave immediately if schedule already loaded
+    // Kick off only after schedule is definitely available
     try {
-      const res = await refetchSchedule();
-      const arr = res.data as unknown as number[] | undefined;
-      if (Array.isArray(arr) && arr.length > 0) {
-        spawnWave();
+      for (let i = 0; i < 12; i++) {
+        const res = await refetchSchedule();
+        const arr = res.data as unknown as number[] | undefined;
+        if (Array.isArray(arr) && arr.length > 0) {
+          setGameActive(true);
+          spawnWave();
+          break;
+        }
+        await new Promise(r => setTimeout(r, 300));
       }
     } catch {}
   }, [address, publicClient, refetchSchedule, refetchSession, signTypedDataAsync, spawnWave, writeGameAsync]);
@@ -591,6 +595,7 @@ export default function GamePage() {
 
         {/* Cat */}
         <div className="absolute left-8" style={{ top: `${catPosition}%` }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/cat/cat1.png" alt="Player Cat" width={120} height={120} draggable={false} />
         </div>
 
@@ -601,6 +606,7 @@ export default function GamePage() {
             className="absolute"
             style={{ transform: `translate3d(${projectile.x}px, ${projectile.y}px, 0)`, willChange: "transform" }}
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/game/shoot2.webp" alt="Projectile" width={40} height={40} draggable={false} />
           </div>
         ))}
@@ -612,6 +618,7 @@ export default function GamePage() {
             className="absolute"
             style={{ transform: `translate3d(${enemy.x}px, ${enemy.y}px, 0)`, willChange: "transform" }}
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={`/game/memes/${enemy.image}`} alt="Enemy Meme" width={80} height={80} draggable={false} />
           </div>
         ))}

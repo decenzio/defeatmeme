@@ -54,7 +54,7 @@ export default function RegisterCard() {
   }) as { data: bigint | undefined };
 
   // Setup write contract for minting
-  const { isPending: isMinting } = useScaffoldWriteContract({
+  const { isPending: isMinting, writeContractAsync: writePlanetAsync } = useScaffoldWriteContract({
     contractName: "PlanetNFT",
   });
 
@@ -154,8 +154,16 @@ export default function RegisterCard() {
       setTimeout(() => refetch(), 1500);
       setTimeout(() => refetch(), 3500);
     } catch (error: any) {
-      console.error("Mint error:", error);
-      alert(`Failed to submit meta-tx: ${error.message ?? "Unknown error"}`);
+      console.error("Meta-tx mint failed, trying direct tx:", error);
+      try {
+        const txHash = await writePlanetAsync({ functionName: "mint", value: mintPrice ?? 0n });
+        alert("🎉 Direct transaction sent! Hash: " + txHash);
+        setTimeout(() => refetch(), 1500);
+        setTimeout(() => refetch(), 3500);
+      } catch (inner: any) {
+        console.error("Direct mint failed:", inner);
+        alert(`Mint failed: ${inner?.message ?? "Unknown error"}`);
+      }
     }
   }
 
