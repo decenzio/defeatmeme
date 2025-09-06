@@ -233,7 +233,7 @@ export default function GamePage() {
           top: `${catPosition}%`,
         }}
       >
-        <Image src="/cat/cat1.png" alt="Player Cat" width={80} height={80} className="object-contain" />
+        <Image src="/cat/cat1.png" alt="Player Cat" width={120} height={120} className="object-contain" />
       </div>
 
       {/* Projectiles */}
