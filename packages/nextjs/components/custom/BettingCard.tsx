@@ -173,15 +173,15 @@ function BettingCard() {
                     <Image
                       src={`/game/memes/${MEME_IMAGES[Number(dayInfoTyped[1])]}`}
                       alt="Winning coin"
-                      width={60}
-                      height={60}
+                      width={80}
+                      height={80}
                       className="object-contain rounded-full border-4 border-yellow-400 shadow-lg"
                     />
-                    <div className="absolute -top-2 -right-2 bg-yellow-400 text-black text-xs px-2 py-1 rounded-full font-bold">
+                    <div className="absolute -top-2 -right-2 bg-yellow-400 text-black text-sm px-2 py-1 rounded-full font-bold">
                       WIN
                     </div>
                   </div>
-                  <span className="text-2xl font-bold text-yellow-300">Coin #{Number(dayInfoTyped[1])}</span>
+                  <span className="text-3xl font-bold text-yellow-300">Coin #{Number(dayInfoTyped[1])}</span>
                 </div>
               </div>
               <span className={`text-6xl animate-bounce ${styles.animationDelay500}`}>🎉</span>
@@ -216,18 +216,18 @@ function BettingCard() {
                       <Image
                         src={`/game/memes/${img}`}
                         alt={`Coin ${index}`}
-                        width={50}
-                        height={50}
+                        width={80}
+                        height={80}
                         className="object-contain mx-auto mb-2 rounded-lg transition-transform group-hover:rotate-12"
                       />
                       {selectedCoin === index && (
-                        <div className="absolute -top-2 -right-2 bg-primary text-primary-content text-xs px-2 py-1 rounded-full font-bold animate-pulse">
+                        <div className="absolute -top-2 -right-2 bg-primary text-primary-content text-sm px-2 py-1 rounded-full font-bold animate-pulse">
                           ✓
                         </div>
                       )}
                     </div>
                     <div
-                      className={`text-sm font-bold ${selectedCoin === index ? "text-primary" : "text-base-content"}`}
+                      className={`text-base font-bold ${selectedCoin === index ? "text-primary" : "text-base-content"}`}
                     >
                       #{index}
                     </div>
@@ -282,38 +282,38 @@ function BettingCard() {
         )}
 
         {/* Your Stakes - Enhanced */}
-        <div className="mb-8 p-6 bg-gradient-to-br from-accent/10 to-accent/5 rounded-2xl border border-accent/20">
-          <h3 className="text-xl font-bold mb-6 text-center flex items-center justify-center gap-2">
-            <span className="text-2xl">💎</span>
+        <div className="mb-8 p-6 bg-gradient-to-br from-base-200/50 to-base-300/50 rounded-2xl border border-primary/20 backdrop-blur-sm">
+          <h3 className="text-2xl font-bold mb-6 text-center flex items-center justify-center gap-2">
+            <span className="text-3xl">💎</span>
             Your Current Stakes
-            <span className="text-2xl">💎</span>
+            <span className="text-3xl">💎</span>
           </h3>
           {userStakesTyped ? (
             <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
               {userStakesTyped.map((stake: bigint, index: number) => (
                 <div
                   key={index}
-                  className={`text-center p-4 rounded-xl transition-all duration-300 ${
+                  className={`text-center p-4 rounded-2xl transition-all duration-300 transform hover:scale-105 ${
                     stake > 0n
                       ? "bg-gradient-to-br from-success/20 to-success/10 border-2 border-success/50 shadow-lg"
-                      : "bg-base-300/30 border border-base-300"
+                      : "bg-base-300/50 border-2 border-transparent hover:border-primary/50 hover:bg-base-200/80"
                   }`}
                 >
                   <div className="relative">
                     <Image
                       src={`/game/memes/${MEME_IMAGES[index]}`}
                       alt={`Coin ${index}`}
-                      width={40}
-                      height={40}
+                      width={80}
+                      height={80}
                       className="object-contain mx-auto mb-2 rounded-lg"
                     />
                     {stake > 0n && (
                       <div className="absolute -top-1 -right-1 w-4 h-4 bg-success rounded-full animate-pulse"></div>
                     )}
                   </div>
-                  <div className="text-xs font-bold opacity-70">#{index}</div>
+                  <div className="text-base font-bold opacity-70">#{index}</div>
                   <div
-                    className={`text-sm font-mono font-bold ${stake > 0n ? "text-success" : "text-base-content/50"}`}
+                    className={`text-base font-mono font-bold ${stake > 0n ? "text-success" : "text-base-content/50"}`}
                   >
                     {stake > 0n ? `💰 ${formatEther(stake)}` : "0"} ETH
                   </div>
@@ -360,13 +360,13 @@ function BettingCard() {
         )}
 
         {/* Current Pool Stats - Enhanced */}
-        <div className="p-6 bg-gradient-to-br from-secondary/10 to-secondary/5 rounded-2xl border border-secondary/20">
-          <h3 className="text-xl font-bold mb-6 text-center flex items-center justify-center gap-2">
-            <span className="text-2xl">📈</span>
+        <div className="p-6 bg-gradient-to-br from-base-200/50 to-base-300/50 rounded-2xl border border-primary/20 backdrop-blur-sm">
+          <h3 className="text-2xl font-bold mb-6 text-center flex items-center justify-center gap-2">
+            <span className="text-3xl">📈</span>
             Live Pool Statistics
-            <span className="text-2xl">📈</span>
+            <span className="text-3xl">📈</span>
           </h3>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
             {dayInfoTyped?.[3]?.map((stake: bigint, index: number) => {
               const stakeAmount = formatEther(stake);
               const maxStake = dayInfoTyped[3]
@@ -377,7 +377,7 @@ function BettingCard() {
               return (
                 <div
                   key={index}
-                  className="relative text-center p-4 rounded-xl bg-gradient-to-br from-base-300/30 to-base-300/10 border border-base-300/50 hover:scale-105 transition-transform duration-300"
+                  className="relative text-center p-4 rounded-2xl bg-gradient-to-br from-base-300/30 to-base-300/10 border-2 border-transparent hover:border-primary/50 hover:bg-base-200/80 transition-all duration-300 transform hover:scale-105"
                 >
                   {/* Popularity bar */}
                   <div
@@ -389,20 +389,20 @@ function BettingCard() {
                     <Image
                       src={`/game/memes/${MEME_IMAGES[index]}`}
                       alt={`Coin ${index}`}
-                      width={40}
-                      height={40}
+                      width={80}
+                      height={80}
                       className="object-contain mx-auto mb-2 rounded-lg"
                     />
                     {Number(stakeAmount) > 0 && (
                       <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full animate-pulse"></div>
                     )}
                   </div>
-                  <div className="text-xs font-bold opacity-70">#{index}</div>
-                  <div className="text-sm font-mono font-bold text-primary">
+                  <div className="text-base font-bold opacity-70">#{index}</div>
+                  <div className="text-base font-mono font-bold text-primary">
                     {Number(stakeAmount) > 0 ? `💰 ${stakeAmount}` : "0"} ETH
                   </div>
                   {stakePercentage > 0 && (
-                    <div className="text-xs opacity-60 mt-1">🔥 {stakePercentage.toFixed(1)}% popular</div>
+                    <div className="text-sm opacity-60 mt-1">🔥 {stakePercentage.toFixed(1)}% popular</div>
                   )}
                 </div>
               );
