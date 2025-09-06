@@ -123,16 +123,18 @@ export default function BettingCard() {
         <div className="text-center mb-8 relative">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent blur-xl"></div>
           <h2 className="relative text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-            🎰 Daily Meme Casino 🎰
+            🔮 Daily Defeated Memes Prediction 🔮
           </h2>
-          <p className="text-lg opacity-80 mt-2">Place your bets on today&apos;s hottest meme coins!</p>
+          <p className="text-lg opacity-80 mt-2">
+            Predict today&apos;s top defeated meme coin and win from the prize pool!
+          </p>
         </div>
 
         {/* Day Status - Enhanced */}
         <div className="mb-8 p-6 bg-gradient-to-r from-base-200 to-base-300 rounded-2xl border border-primary/10">
           <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
             <span className="text-2xl">📊</span>
-            Casino Status
+            Prediction Round
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="text-center">
@@ -146,7 +148,7 @@ export default function BettingCard() {
               </div>
             </div>
             <div className="text-center">
-              <div className="text-sm opacity-70">Total Jackpot</div>
+              <div className="text-sm opacity-70">Prize Pool</div>
               <div className="text-xl font-mono text-warning">
                 💰 {dayInfoTyped?.[2] ? formatEther(dayInfoTyped[2]) : "0"} ETH
               </div>
@@ -183,18 +185,18 @@ export default function BettingCard() {
           </div>
         )}
 
-        {/* Place Bet Section - Enhanced */}
+        {/* Prediction Section - Enhanced */}
         {!dayInfoTyped?.[0] && (
           <div className="mb-8 p-6 bg-gradient-to-br from-base-200/50 to-base-300/50 rounded-2xl border border-primary/20 backdrop-blur-sm">
             <h3 className="text-2xl font-bold mb-6 text-center flex items-center justify-center gap-2">
-              <span className="text-3xl">🎲</span>
-              Place Your Bet
-              <span className="text-3xl">🎲</span>
+              <span className="text-3xl">📊</span>
+              Make Your Prediction
+              <span className="text-3xl">📊</span>
             </h3>
 
             {/* Coin Selection - Enhanced */}
             <div className="mb-6">
-              <label className="block text-lg font-bold mb-4 text-center">Choose Your Meme Champion:</label>
+              <label className="block text-lg font-bold mb-4 text-center">Choose Your Meme Option:</label>
               <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
                 {MEME_IMAGES.map((img, index) => (
                   <button
@@ -230,9 +232,9 @@ export default function BettingCard() {
               </div>
             </div>
 
-            {/* Bet Amount - Enhanced */}
+            {/* Stake Amount - Enhanced */}
             <div className="mb-6">
-              <label className="block text-lg font-bold mb-4 text-center">💰 Bet Amount 💰</label>
+              <label className="block text-lg font-bold mb-4 text-center">💰 Stake Amount 💰</label>
               <div className="max-w-md mx-auto">
                 <EtherInput
                   name="betAmount"
@@ -247,7 +249,7 @@ export default function BettingCard() {
               </div>
             </div>
 
-            {/* Place Bet Button - Enhanced */}
+            {/* Submit Prediction Button - Enhanced */}
             <div className="text-center">
               <button
                 onClick={placeBet}
@@ -262,13 +264,13 @@ export default function BettingCard() {
                   isMining || isAnimating ? (
                     <span className="flex items-center gap-2">
                       <span className="loading loading-spinner loading-sm"></span>
-                      Placing Bet...
+                      Submitting Prediction...
                     </span>
                   ) : (
-                    `🎰 Bet Ξ${betAmount || "0"} on Coin #${selectedCoin} 🎰`
+                    `📊 Stake Ξ${betAmount || "0"} on Option #${selectedCoin}`
                   )
                 ) : (
-                  "🔗 Connect Wallet to Start Gambling 🔗"
+                  "🔗 Connect Wallet to Predict 🔗"
                 )}
               </button>
             </div>
@@ -317,7 +319,7 @@ export default function BettingCard() {
           ) : (
             <div className="text-center py-8">
               <div className="text-6xl mb-4">🎲</div>
-              <p className="text-lg opacity-70">No stakes yet - time to make your first bet!</p>
+              <p className="text-lg opacity-70">No stake yet - make your first prediction!</p>
             </div>
           )}
         </div>
@@ -333,7 +335,7 @@ export default function BettingCard() {
               <div className="text-center">
                 <div className="text-6xl mb-4 animate-bounce">🎊</div>
                 <h3 className="text-3xl font-bold text-yellow-300 mb-4">CONGRATULATIONS!</h3>
-                <p className="text-lg mb-6 text-yellow-100">You picked the winning meme! Time to claim your rewards!</p>
+                <p className="text-lg mb-6 text-yellow-100">You predicted correctly! Time to claim your reward!</p>
                 <button
                   onClick={claimWinnings}
                   className="btn btn-warning btn-lg px-8 py-4 text-lg font-bold rounded-2xl bg-gradient-to-r from-yellow-400 to-amber-400 text-black hover:scale-105 transition-transform duration-300"
@@ -406,7 +408,7 @@ export default function BettingCard() {
 
         {/* Decorative footer */}
         <div className="text-center mt-8 opacity-50">
-          <div className="text-sm">🎰 Good luck, and may the memes be with you! 🎰</div>
+          <div className="text-sm">🎯 Good luck, and may the memes be with you!</div>
         </div>
       </div>
     </div>
