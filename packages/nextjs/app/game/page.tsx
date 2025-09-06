@@ -9,11 +9,32 @@ interface Projectile {
   y: number; // Position from top in pixels
 }
 
+interface Enemy {
+  id: number;
+  x: number; // Position from left in pixels
+  y: number; // Position from top in pixels
+  image: string; // Meme image filename
+}
+
+const MEME_IMAGES = [
+  "babydoge.jpg",
+  "bome.webp",
+  "bonk.jpg",
+  "coingeckoupdate.webp",
+  "DOGGOTOTHEMOON.webp",
+  "dogwifhat.jpg",
+  "MEW.webp",
+  "PUDGY_PENGUINS_PENGU_PFP.webp",
+  "trolllogo.webp",
+];
+
 export default function GamePage() {
   const [catPosition, setCatPosition] = useState(50); // Position as percentage from top
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
   const [nextProjectileId, setNextProjectileId] = useState(0);
   const [keys, setKeys] = useState<{ up?: boolean; down?: boolean }>({});
+  const [enemies, setEnemies] = useState<Enemy[]>([]);
+  const [nextEnemyId, setNextEnemyId] = useState(0);
 
   const shoot = useCallback(() => {
     setProjectiles(prev => [
@@ -26,6 +47,25 @@ export default function GamePage() {
     ]);
     setNextProjectileId(prev => prev + 1);
   }, [catPosition, nextProjectileId]);
+
+  const spawnEnemy = useCallback(() => {
+    const rows = 5;
+    const screenHeight = window.innerHeight;
+    const rowHeight = screenHeight / rows;
+    const randomRow = Math.floor(Math.random() * rows);
+    const randomImage = MEME_IMAGES[Math.floor(Math.random() * MEME_IMAGES.length)];
+
+    setEnemies(prev => [
+      ...prev,
+      {
+        id: nextEnemyId,
+        x: window.innerWidth + 50, // Start off-screen to the right
+        y: randomRow * rowHeight + rowHeight / 2 - 40, // Center in the row, adjusted for image size
+        image: randomImage,
+      },
+    ]);
+    setNextEnemyId(prev => prev + 1);
+  }, [nextEnemyId]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -90,11 +130,24 @@ export default function GamePage() {
     return () => clearInterval(gameLoop);
   }, [keys]);
 
-  // Animation loop for projectiles
+  // Enemy spawning timer
+  useEffect(() => {
+    const spawnTimer = setInterval(() => {
+      if (Math.random() < 0.3) {
+        // 30% chance to spawn each interval
+        spawnEnemy();
+      }
+    }, 2000); // Check every 2 seconds
+
+    return () => clearInterval(spawnTimer);
+  }, [spawnEnemy]);
+
+  // Animation loop for projectiles and enemies
   useEffect(() => {
     let animationId: number;
 
     const animate = () => {
+      // Move projectiles
       setProjectiles(prev => {
         const updated = prev
           .map(projectile => ({
@@ -102,6 +155,18 @@ export default function GamePage() {
             x: projectile.x + 3, // Move 3 pixels to the right each frame (slower)
           }))
           .filter(projectile => projectile.x < window.innerWidth + 50); // Remove off-screen projectiles
+
+        return updated;
+      });
+
+      // Move enemies
+      setEnemies(prev => {
+        const updated = prev
+          .map(enemy => ({
+            ...enemy,
+            x: enemy.x - 2, // Move 2 pixels to the left each frame
+          }))
+          .filter(enemy => enemy.x > -100); // Remove off-screen enemies
 
         return updated;
       });
@@ -148,6 +213,26 @@ export default function GamePage() {
             height={100}
             className="object-contain"
             style={{ transform: "rotate(90deg)" }}
+          />
+        </div>
+      ))}
+
+      {/* Enemies */}
+      {enemies.map(enemy => (
+        <div
+          key={enemy.id}
+          className="absolute"
+          style={{
+            left: `${enemy.x}px`,
+            top: `${enemy.y}px`,
+          }}
+        >
+          <Image
+            src={`/game/memes/${enemy.image}`}
+            alt="Enemy Meme"
+            width={80}
+            height={80}
+            className="object-contain"
           />
         </div>
       ))}
