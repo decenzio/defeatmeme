@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./AggregatorV3Interface.sol";
 
 contract GameEngine is Ownable {
     uint8 public immutable WAVE_COUNT;
@@ -10,6 +11,14 @@ contract GameEngine is Ownable {
     uint40 public immutable TIMEOUT_BLOCKS;
 
     uint8 public enemyTypesCount; // client maps [0..enemyTypesCount-1] -> image file
+
+    // Chainlink Price Feed Addresses
+    AggregatorV3Interface internal ethPriceFeed;
+    AggregatorV3Interface internal btcPriceFeed;
+    AggregatorV3Interface internal pufEthPriceFeed;
+
+    // Price feeds enabled flag
+    bool public priceFeedsEnabled;
 
     struct Session {
         bytes32 seed;
@@ -41,6 +50,16 @@ contract GameEngine is Ownable {
         WAVE_SIZE = _waveSize;
         TOTAL_ENEMIES = uint16(uint256(_waveCount) * uint256(_waveSize));
         TIMEOUT_BLOCKS = _timeoutBlocks;
+
+        // Initialize Chainlink price feeds (only if addresses are valid)
+        if (_areValidAddresses()) {
+            ethPriceFeed = AggregatorV3Interface(0x72266eFcdd0EC7110b44576e5413EF383950EEc2);
+            btcPriceFeed = AggregatorV3Interface(0xCfd39de761508A7aCb8C931b959127a1D9d0B3D4);
+            pufEthPriceFeed = AggregatorV3Interface(0xE7e734789954e6CffD8C295CBD0916A0A5747D27);
+            priceFeedsEnabled = true;
+        } else {
+            priceFeedsEnabled = false;
+        }
     }
 
     // --- Admin ---
@@ -48,6 +67,81 @@ contract GameEngine is Ownable {
     function setEnemyTypesCount(uint8 newCount) external onlyOwner {
         require(newCount > 0, "enemy types = 0");
         enemyTypesCount = newCount;
+    }
+
+    function setPriceFeeds(
+        address _ethPriceFeed,
+        address _btcPriceFeed,
+        address _pufEthPriceFeed
+    ) external onlyOwner {
+        ethPriceFeed = AggregatorV3Interface(_ethPriceFeed);
+        btcPriceFeed = AggregatorV3Interface(_btcPriceFeed);
+        pufEthPriceFeed = AggregatorV3Interface(_pufEthPriceFeed);
+        priceFeedsEnabled = true; // Enable when manually set
+    }
+
+    function disablePriceFeeds() external onlyOwner {
+        priceFeedsEnabled = false;
+    }
+
+    // --- Helper Functions ---
+
+    function _areValidAddresses() internal view returns (bool) {
+        // Simple check to see if we're on a network that has these contracts
+        // This is a basic heuristic - in production you'd want more robust checks
+        return block.chainid != 31337 && block.chainid != 1337; // Exclude Hardhat and Ganache
+    }
+
+    // --- Price Feed Functions ---
+
+    function getLatestPrices() public view returns (int256 ethPrice, int256 btcPrice, int256 pufEthPrice) {
+        if (!priceFeedsEnabled) {
+            // Return fallback values when price feeds are disabled
+            return (2000 * 10**8, 40000 * 10**8, 1800 * 10**8); // Mock prices in 8 decimal format
+        }
+
+        try ethPriceFeed.latestRoundData() returns (uint80, int256 _ethPrice, uint256, uint256, uint80) {
+            ethPrice = _ethPrice;
+        } catch {
+            ethPrice = 2000 * 10**8; // Fallback ETH price
+        }
+
+        try btcPriceFeed.latestRoundData() returns (uint80, int256 _btcPrice, uint256, uint256, uint80) {
+            btcPrice = _btcPrice;
+        } catch {
+            btcPrice = 40000 * 10**8; // Fallback BTC price
+        }
+
+        try pufEthPriceFeed.latestRoundData() returns (uint80, int256 _pufEthPrice, uint256, uint256, uint80) {
+            pufEthPrice = _pufEthPrice;
+        } catch {
+            pufEthPrice = 1800 * 10**8; // Fallback pufETH price
+        }
+    }
+
+    function generateEnhancedRandomness() internal view returns (bytes32) {
+        // Get latest prices from Chainlink oracles
+        (int256 ethPrice, int256 btcPrice, int256 pufEthPrice) = getLatestPrices();
+
+        // Combine multiple sources of randomness:
+        // 1. Previous block hash
+        // 2. Current block's prevrandao
+        // 3. Player address
+        // 4. Nonce
+        // 5. ETH price
+        // 6. BTC price
+        // 7. pufETH price
+        // 8. Block timestamp
+        return keccak256(abi.encodePacked(
+            blockhash(block.number - 1),
+            block.prevrandao,
+            msg.sender,
+            _nonce,
+            ethPrice,
+            btcPrice,
+            pufEthPrice,
+            block.timestamp
+        ));
     }
 
     // --- Session lifecycle ---
@@ -77,8 +171,9 @@ contract GameEngine is Ownable {
             require(block.number > s.startBlock + TIMEOUT_BLOCKS, "active session");
         }
 
-        // Local randomness (fallback). Replace with RedStone VRF in future.
-        bytes32 seed = keccak256(abi.encodePacked(blockhash(block.number - 1), msg.sender, block.prevrandao, _nonce++));
+        // Enhanced randomness using Chainlink price feeds + blockchain data
+        _nonce++;
+        bytes32 seed = generateEnhancedRandomness();
         _activeSession[msg.sender] = Session({ seed: seed, startBlock: uint40(block.number), exists: true });
     }
 

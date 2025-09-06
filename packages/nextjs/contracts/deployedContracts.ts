@@ -108,6 +108,13 @@ const deployedContracts = {
         },
         {
           inputs: [],
+          name: "disablePriceFeeds",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [],
           name: "enemyTypesCount",
           outputs: [
             {
@@ -148,6 +155,29 @@ const deployedContracts = {
               internalType: "bool",
               name: "active",
               type: "bool",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "getLatestPrices",
+          outputs: [
+            {
+              internalType: "int256",
+              name: "ethPrice",
+              type: "int256",
+            },
+            {
+              internalType: "int256",
+              name: "btcPrice",
+              type: "int256",
+            },
+            {
+              internalType: "int256",
+              name: "pufEthPrice",
+              type: "int256",
             },
           ],
           stateMutability: "view",
@@ -277,6 +307,19 @@ const deployedContracts = {
         },
         {
           inputs: [],
+          name: "priceFeedsEnabled",
+          outputs: [
+            {
+              internalType: "bool",
+              name: "",
+              type: "bool",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
           name: "renounceOwnership",
           outputs: [],
           stateMutability: "nonpayable",
@@ -291,6 +334,29 @@ const deployedContracts = {
             },
           ],
           name: "setEnemyTypesCount",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "_ethPriceFeed",
+              type: "address",
+            },
+            {
+              internalType: "address",
+              name: "_btcPriceFeed",
+              type: "address",
+            },
+            {
+              internalType: "address",
+              name: "_pufEthPriceFeed",
+              type: "address",
+            },
+          ],
+          name: "setPriceFeeds",
           outputs: [],
           stateMutability: "nonpayable",
           type: "function",
