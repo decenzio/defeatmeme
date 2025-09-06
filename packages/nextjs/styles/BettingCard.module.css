@@ -1,0 +1,7 @@
+.animationDelay500 {
+  animation-delay: 0.5s;
+}
+
+.popularityBar {
+  transition: width 0.5s ease-in-out;
+}
