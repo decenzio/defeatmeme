@@ -91,7 +91,7 @@ export default function GamePage() {
       {
         id: nextProjectileId,
         x: 100,
-        y: (catPosition / 100) * window.innerHeight - 50,
+        y: (catPosition / 100) * window.innerHeight + 40,
       },
     ]);
     setNextProjectileId(prev => prev + 1);
@@ -400,12 +400,12 @@ export default function GamePage() {
         {projectiles.map(projectile => (
           <div key={projectile.id} className="absolute" style={{ left: `${projectile.x}px`, top: `${projectile.y}px` }}>
             <Image
-              src="/game/shoot.png"
+              src="/game/shoot2.webp"
               alt="Projectile"
-              width={100}
-              height={100}
+              width={40}
+              height={40}
               className="object-contain"
-              style={{ transform: "rotate(90deg)" }}
+              // style={{ transform: "rotate(90deg)" }}
             />
           </div>
         ))}
