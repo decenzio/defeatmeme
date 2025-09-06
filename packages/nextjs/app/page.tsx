@@ -61,7 +61,7 @@ export default function Home() {
           <div className="space-y-4">
             <button
               className="btn btn-primary btn-lg text-xl px-12 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 border-0 hover:from-cyan-600 hover:to-blue-700 transform hover:scale-105 transition-all duration-200 shadow-2xl"
-              onClick={() => router.push("/game")}
+              onClick={() => router.push("/home")}
             >
               🚀 START BLASTING
             </button>
