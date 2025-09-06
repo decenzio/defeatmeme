@@ -2,41 +2,24 @@
 
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
-import { MoonIcon, SunIcon } from "@heroicons/react/24/outline";
+import { MoonIcon } from "@heroicons/react/24/outline";
 
 export const SwitchTheme = ({ className }: { className?: string }) => {
-  const { setTheme, resolvedTheme } = useTheme();
+  const { setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-
-  const isDarkMode = resolvedTheme === "dark";
-
-  const handleToggle = () => {
-    if (isDarkMode) {
-      setTheme("light");
-      return;
-    }
-    setTheme("dark");
-  };
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    // Force dark mode
+    setTheme("dark");
+  }, [setTheme]);
 
   if (!mounted) return null;
 
   return (
     <div className={`flex space-x-2 h-8 items-center justify-center text-sm ${className}`}>
-      <input
-        id="theme-toggle"
-        type="checkbox"
-        className="toggle bg-secondary toggle-primary hover:bg-accent transition-all"
-        onChange={handleToggle}
-        checked={isDarkMode}
-      />
-      <label htmlFor="theme-toggle" className={`swap swap-rotate ${!isDarkMode ? "swap-active" : ""}`}>
-        <SunIcon className="swap-on h-5 w-5" />
-        <MoonIcon className="swap-off h-5 w-5" />
-      </label>
+      <MoonIcon className="h-5 w-5 text-cyan-400" />
+      <span className="text-cyan-400 text-xs">Dark Mode</span>
     </div>
   );
 };
