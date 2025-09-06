@@ -48,23 +48,25 @@ export default function GamePage() {
     setNextProjectileId(prev => prev + 1);
   }, [catPosition, nextProjectileId]);
 
-  const spawnEnemy = useCallback(() => {
+  const spawnWave = useCallback(() => {
     const rows = 5;
     const screenHeight = window.innerHeight;
     const rowHeight = screenHeight / rows;
-    const randomRow = Math.floor(Math.random() * rows);
-    const randomImage = MEME_IMAGES[Math.floor(Math.random() * MEME_IMAGES.length)];
 
-    setEnemies(prev => [
-      ...prev,
-      {
-        id: nextEnemyId,
+    // Create 5 enemies, one for each row
+    const newEnemies: Enemy[] = [];
+    for (let row = 0; row < rows; row++) {
+      const randomImage = MEME_IMAGES[Math.floor(Math.random() * MEME_IMAGES.length)];
+      newEnemies.push({
+        id: nextEnemyId + row,
         x: window.innerWidth + 50, // Start off-screen to the right
-        y: randomRow * rowHeight + rowHeight / 2 - 40, // Center in the row, adjusted for image size
+        y: row * rowHeight + rowHeight / 2 - 40, // Center in each row
         image: randomImage,
-      },
-    ]);
-    setNextEnemyId(prev => prev + 1);
+      });
+    }
+
+    setEnemies(prev => [...prev, ...newEnemies]);
+    setNextEnemyId(prev => prev + 5); // Increment by 5 since we added 5 enemies
   }, [nextEnemyId]);
 
   useEffect(() => {
@@ -130,17 +132,14 @@ export default function GamePage() {
     return () => clearInterval(gameLoop);
   }, [keys]);
 
-  // Enemy spawning timer
+  // Enemy wave spawning timer
   useEffect(() => {
-    const spawnTimer = setInterval(() => {
-      if (Math.random() < 0.3) {
-        // 30% chance to spawn each interval
-        spawnEnemy();
-      }
-    }, 2000); // Check every 2 seconds
+    const waveTimer = setInterval(() => {
+      spawnWave(); // Spawn 5 enemies (one per row) every interval
+    }, 3500); // Every 3.5 seconds
 
-    return () => clearInterval(spawnTimer);
-  }, [spawnEnemy]);
+    return () => clearInterval(waveTimer);
+  }, [spawnWave]);
 
   // Animation loop for projectiles and enemies
   useEffect(() => {
