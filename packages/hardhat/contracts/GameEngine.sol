@@ -2,12 +2,13 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
-import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
-import {Context} from "@openzeppelin/contracts/utils/Context.sol";
+import { ERC2771Context } from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
+import { Context } from "@openzeppelin/contracts/utils/Context.sol";
 import "./AggregatorV3Interface.sol";
 
 interface IPlanetNFT {
     function ownedPlanet(address owner) external view returns (uint256);
+
     function recordGameResult(uint256 tokenId, uint256 dayId, uint8[] calldata counts) external;
 }
 
@@ -69,9 +70,21 @@ contract GameEngine is ERC2771Context, Ownable {
     mapping(uint256 => uint8) public dayWinningCoin;
     // Locked denominators and payout pool at settlement time
     mapping(uint256 => uint256) public dayWinnersStake; // sum of stakes on the winning coin
-    mapping(uint256 => uint256) public dayPayoutPool;   // totalStaked * (BPS - FEE_BPS) / BPS
+    mapping(uint256 => uint256) public dayPayoutPool; // totalStaked * (BPS - FEE_BPS) / BPS
     // Claims
     mapping(uint256 => mapping(address => bool)) public hasClaimed;
+
+    // Events
+    event GameCompleted(
+        address indexed player,
+        uint256 indexed planetId,
+        uint256 indexed dayId,
+        bytes32 seed,
+        uint40 startBlock,
+        uint40 endBlock,
+        uint8[] counts,
+        uint256 totalDefeats
+    );
 
     constructor(
         address _planetNFT,
@@ -109,11 +122,7 @@ contract GameEngine is ERC2771Context, Ownable {
         enemyTypesCount = newCount;
     }
 
-    function setPriceFeeds(
-        address _ethPriceFeed,
-        address _btcPriceFeed,
-        address _pufEthPriceFeed
-    ) external onlyOwner {
+    function setPriceFeeds(address _ethPriceFeed, address _btcPriceFeed, address _pufEthPriceFeed) external onlyOwner {
         ethPriceFeed = AggregatorV3Interface(_ethPriceFeed);
         btcPriceFeed = AggregatorV3Interface(_btcPriceFeed);
         pufEthPriceFeed = AggregatorV3Interface(_pufEthPriceFeed);
@@ -137,25 +146,25 @@ contract GameEngine is ERC2771Context, Ownable {
     function getLatestPrices() public view returns (int256 ethPrice, int256 btcPrice, int256 pufEthPrice) {
         if (!priceFeedsEnabled) {
             // Return fallback values when price feeds are disabled
-            return (2000 * 10**8, 40000 * 10**8, 1800 * 10**8); // Mock prices in 8 decimal format
+            return (2000 * 10 ** 8, 40000 * 10 ** 8, 1800 * 10 ** 8); // Mock prices in 8 decimal format
         }
 
         try ethPriceFeed.latestRoundData() returns (uint80, int256 _ethPrice, uint256, uint256, uint80) {
             ethPrice = _ethPrice;
         } catch {
-            ethPrice = 2000 * 10**8; // Fallback ETH price
+            ethPrice = 2000 * 10 ** 8; // Fallback ETH price
         }
 
         try btcPriceFeed.latestRoundData() returns (uint80, int256 _btcPrice, uint256, uint256, uint80) {
             btcPrice = _btcPrice;
         } catch {
-            btcPrice = 40000 * 10**8; // Fallback BTC price
+            btcPrice = 40000 * 10 ** 8; // Fallback BTC price
         }
 
         try pufEthPriceFeed.latestRoundData() returns (uint80, int256 _pufEthPrice, uint256, uint256, uint80) {
             pufEthPrice = _pufEthPrice;
         } catch {
-            pufEthPrice = 1800 * 10**8; // Fallback pufETH price
+            pufEthPrice = 1800 * 10 ** 8; // Fallback pufETH price
         }
     }
 
@@ -172,16 +181,19 @@ contract GameEngine is ERC2771Context, Ownable {
         // 6. BTC price
         // 7. pufETH price
         // 8. Block timestamp
-        return keccak256(abi.encodePacked(
-            blockhash(block.number - 1),
-            block.prevrandao,
-            _msgSender(),
-            _nonce,
-            ethPrice,
-            btcPrice,
-            pufEthPrice,
-            block.timestamp
-        ));
+        return
+            keccak256(
+                abi.encodePacked(
+                    blockhash(block.number - 1),
+                    block.prevrandao,
+                    _msgSender(),
+                    _nonce,
+                    ethPrice,
+                    btcPrice,
+                    pufEthPrice,
+                    block.timestamp
+                )
+            );
     }
 
     // --- Session lifecycle ---
@@ -193,7 +205,9 @@ contract GameEngine is ERC2771Context, Ownable {
         return true;
     }
 
-    function getActiveSession(address player) external view returns (bytes32 seed, uint40 startBlock, uint40 deadline, bool active) {
+    function getActiveSession(
+        address player
+    ) external view returns (bytes32 seed, uint40 startBlock, uint40 deadline, bool active) {
         Session memory s = _activeSession[player];
         if (!s.exists) {
             return (bytes32(0), 0, 0, false);
@@ -246,21 +260,32 @@ contract GameEngine is ERC2771Context, Ownable {
         for (uint256 i = 0; i < counts.length; i++) {
             copy[i] = counts[i];
         }
-        _plays[_msgSender()].push(Play({
-            seed: s.seed,
-            startBlock: s.startBlock,
-            endBlock: uint40(block.number),
-            counts: copy
-        }));
+        _plays[_msgSender()].push(
+            Play({ seed: s.seed, startBlock: s.startBlock, endBlock: uint40(block.number), counts: copy })
+        );
 
         // Update daily defeats tallies and persist to NFT attributes
         uint256 dayId = block.timestamp / 1 days;
+        uint256 totalDefeats = 0;
         for (uint256 i = 0; i < counts.length; i++) {
             dailyDefeats[dayId][uint8(i)] += counts[i];
+            totalDefeats += counts[i];
         }
         uint256 tokenId = planetNFT.ownedPlanet(_msgSender());
         // tokenId must be non-zero since we require it in startGame
         planetNFT.recordGameResult(tokenId, dayId, counts);
+
+        // Emit game completion event
+        emit GameCompleted(
+            _msgSender(),
+            tokenId,
+            dayId,
+            s.seed,
+            s.startBlock,
+            uint40(block.number),
+            counts,
+            totalDefeats
+        );
 
         delete _activeSession[_msgSender()];
     }
@@ -271,7 +296,10 @@ contract GameEngine is ERC2771Context, Ownable {
         return _plays[player].length;
     }
 
-    function getPlay(address player, uint256 index) external view returns (bytes32 seed, uint40 startBlock, uint40 endBlock, uint8[] memory counts) {
+    function getPlay(
+        address player,
+        uint256 index
+    ) external view returns (bytes32 seed, uint40 startBlock, uint40 endBlock, uint8[] memory counts) {
         Play storage p = _plays[player][index];
         return (p.seed, p.startBlock, p.endBlock, p.counts);
     }
@@ -338,19 +366,25 @@ contract GameEngine is ERC2771Context, Ownable {
 
         hasClaimed[dayId][_msgSender()] = true;
 
-        (bool ok, ) = payable(_msgSender()).call{value: amount}("");
+        (bool ok, ) = payable(_msgSender()).call{ value: amount }("");
         require(ok, "transfer failed");
     }
 
     // --- Views for UI ---
 
-    function getDayInfo(uint256 dayId) external view returns (
-        bool settled,
-        uint8 winningCoin,
-        uint256 totalPool,
-        uint256[] memory stakesPerCoin,
-        uint256[] memory defeatsPerCoin
-    ) {
+    function getDayInfo(
+        uint256 dayId
+    )
+        external
+        view
+        returns (
+            bool settled,
+            uint8 winningCoin,
+            uint256 totalPool,
+            uint256[] memory stakesPerCoin,
+            uint256[] memory defeatsPerCoin
+        )
+    {
         settled = daySettled[dayId];
         winningCoin = dayWinningCoin[dayId];
         totalPool = totalStaked[dayId];
@@ -375,30 +409,15 @@ contract GameEngine is ERC2771Context, Ownable {
     }
 
     // --- ERC2771 overrides ---
-    function _msgSender()
-        internal
-        view
-        override(Context, ERC2771Context)
-        returns (address sender)
-    {
+    function _msgSender() internal view override(Context, ERC2771Context) returns (address sender) {
         return ERC2771Context._msgSender();
     }
 
-    function _msgData()
-        internal
-        view
-        override(Context, ERC2771Context)
-        returns (bytes calldata)
-    {
+    function _msgData() internal view override(Context, ERC2771Context) returns (bytes calldata) {
         return ERC2771Context._msgData();
     }
 
-    function _contextSuffixLength()
-        internal
-        view
-        override(Context, ERC2771Context)
-        returns (uint256)
-    {
+    function _contextSuffixLength() internal view override(Context, ERC2771Context) returns (uint256) {
         return ERC2771Context._contextSuffixLength();
     }
 }
