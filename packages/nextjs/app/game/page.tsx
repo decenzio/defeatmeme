@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 
 interface Projectile {
@@ -35,6 +35,8 @@ export default function GamePage() {
   const [keys, setKeys] = useState<{ up?: boolean; down?: boolean }>({});
   const [enemies, setEnemies] = useState<Enemy[]>([]);
   const [nextEnemyId, setNextEnemyId] = useState(0);
+  const projectilesRef = useRef<Projectile[]>([]);
+  const enemiesRef = useRef<Enemy[]>([]);
 
   const shoot = useCallback(() => {
     setProjectiles(prev => [
@@ -146,28 +148,67 @@ export default function GamePage() {
     let animationId: number;
 
     const animate = () => {
-      // Move projectiles
       setProjectiles(prev => {
-        const updated = prev
+        // Move projectiles
+        const movedProjectiles = prev
           .map(projectile => ({
             ...projectile,
-            x: projectile.x + 3, // Move 3 pixels to the right each frame (slower)
+            x: projectile.x + 3, // Move 3 pixels to the right each frame
           }))
-          .filter(projectile => projectile.x < window.innerWidth + 50); // Remove off-screen projectiles
+          .filter(projectile => projectile.x < window.innerWidth + 50);
 
-        return updated;
+        projectilesRef.current = movedProjectiles;
+        return movedProjectiles;
       });
 
-      // Move enemies
       setEnemies(prev => {
-        const updated = prev
+        // Move enemies
+        const movedEnemies = prev
           .map(enemy => ({
             ...enemy,
             x: enemy.x - 2, // Move 2 pixels to the left each frame
           }))
-          .filter(enemy => enemy.x > -100); // Remove off-screen enemies
+          .filter(enemy => enemy.x > -100);
 
-        return updated;
+        enemiesRef.current = movedEnemies;
+
+        // Check for collisions
+        const hitProjectileIds = new Set<number>();
+        const hitEnemyIds = new Set<number>();
+
+        projectilesRef.current.forEach(projectile => {
+          movedEnemies.forEach(enemy => {
+            // Simple collision detection (rectangular overlap)
+            const projectileLeft = projectile.x;
+            const projectileRight = projectile.x + 100; // projectile width
+            const projectileTop = projectile.y;
+            const projectileBottom = projectile.y + 100; // projectile height
+
+            const enemyLeft = enemy.x;
+            const enemyRight = enemy.x + 80; // enemy width
+            const enemyTop = enemy.y;
+            const enemyBottom = enemy.y + 80; // enemy height
+
+            // Check if rectangles overlap
+            if (
+              projectileLeft < enemyRight &&
+              projectileRight > enemyLeft &&
+              projectileTop < enemyBottom &&
+              projectileBottom > enemyTop
+            ) {
+              hitProjectileIds.add(projectile.id);
+              hitEnemyIds.add(enemy.id);
+            }
+          });
+        });
+
+        // Remove hit projectiles
+        if (hitProjectileIds.size > 0) {
+          setProjectiles(prevProjectiles => prevProjectiles.filter(projectile => !hitProjectileIds.has(projectile.id)));
+        }
+
+        // Remove hit enemies
+        return movedEnemies.filter(enemy => !hitEnemyIds.has(enemy.id));
       });
 
       animationId = requestAnimationFrame(animate);
