@@ -1,19 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { useAccount, usePublicClient } from "wagmi";
+import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 
 interface Projectile {
   id: number;
-  x: number; // Position from left in pixels
-  y: number; // Position from top in pixels
+  x: number;
+  y: number;
 }
 
 interface Enemy {
   id: number;
-  x: number; // Position from left in pixels
-  y: number; // Position from top in pixels
-  image: string; // Meme image filename
+  x: number;
+  y: number;
+  typeIdx: number;
+  image: string;
 }
 
 const MEME_IMAGES = [
@@ -28,48 +31,158 @@ const MEME_IMAGES = [
   "trolllogo.webp",
 ];
 
+const WAVE_INTERVAL_MS = 3500;
+
 export default function GamePage() {
-  const [catPosition, setCatPosition] = useState(50); // Position as percentage from top
+  const { address } = useAccount();
+  const publicClient = usePublicClient();
+
+  const { data: enemyTypesCount } = useScaffoldReadContract({
+    contractName: "GameEngine",
+    functionName: "enemyTypesCount",
+  });
+
+  const { refetch: refetchSession } = useScaffoldReadContract({
+    contractName: "GameEngine",
+    functionName: "getActiveSession",
+    args: [address as `0x${string}`],
+    query: { enabled: Boolean(address) },
+  });
+
+  const [gameActive, setGameActive] = useState(false);
+
+  const { data: schedule, refetch: refetchSchedule } = useScaffoldReadContract({
+    contractName: "GameEngine",
+    functionName: "getScheduleFor",
+    args: [address as `0x${string}`],
+    query: { enabled: Boolean(address) },
+  });
+
+  const { writeContractAsync: writeGameAsync } = useScaffoldWriteContract({ contractName: "GameEngine" });
+
+  const [catPosition, setCatPosition] = useState(50);
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
   const [nextProjectileId, setNextProjectileId] = useState(0);
   const [keys, setKeys] = useState<{ up?: boolean; down?: boolean }>({});
   const [enemies, setEnemies] = useState<Enemy[]>([]);
   const [nextEnemyId, setNextEnemyId] = useState(0);
+  const [spawnPtr, setSpawnPtr] = useState(0);
+  const [counts, setCounts] = useState<number[]>(() => new Array(MEME_IMAGES.length).fill(0));
+  const [submitting, setSubmitting] = useState(false);
+
   const projectilesRef = useRef<Projectile[]>([]);
   const enemiesRef = useRef<Enemy[]>([]);
+
+  const totalScheduled = useMemo(() => (Array.isArray(schedule) ? schedule.length : 0), [schedule]);
+  const totalKilled = useMemo(() => counts.reduce((a, b) => a + b, 0), [counts]);
+  const wavesTotal = 30;
+  const waveSize = 5;
+  const currentWave = useMemo(() => Math.min(wavesTotal, Math.floor(spawnPtr / waveSize)), [spawnPtr]);
+  const progressPct = useMemo(
+    () => (totalScheduled > 0 ? Math.min(100, Math.floor((totalKilled / totalScheduled) * 100)) : 0),
+    [totalKilled, totalScheduled],
+  );
 
   const shoot = useCallback(() => {
     setProjectiles(prev => [
       ...prev,
       {
         id: nextProjectileId,
-        x: 100, // Start closer to the cat's head
-        y: (catPosition / 100) * window.innerHeight - 50, // Position much higher at cat's head (larger negative offset)
+        x: 100,
+        y: (catPosition / 100) * window.innerHeight - 50,
       },
     ]);
     setNextProjectileId(prev => prev + 1);
   }, [catPosition, nextProjectileId]);
 
   const spawnWave = useCallback(() => {
+    if (!Array.isArray(schedule) || schedule.length === 0) return;
     const rows = 5;
     const screenHeight = window.innerHeight;
     const rowHeight = screenHeight / rows;
 
-    // Create 5 enemies, one for each row
     const newEnemies: Enemy[] = [];
     for (let row = 0; row < rows; row++) {
-      const randomImage = MEME_IMAGES[Math.floor(Math.random() * MEME_IMAGES.length)];
+      const idx = spawnPtr + row;
+      if (idx >= schedule.length) break;
+      const typeIdx = Number(schedule[idx]);
+      const image = MEME_IMAGES[typeIdx % MEME_IMAGES.length];
       newEnemies.push({
         id: nextEnemyId + row,
-        x: window.innerWidth + 50, // Start off-screen to the right
-        y: row * rowHeight + rowHeight / 2 - 40, // Center in each row
-        image: randomImage,
+        x: window.innerWidth + 50,
+        y: row * rowHeight + rowHeight / 2 - 40,
+        typeIdx,
+        image,
       });
     }
+    if (newEnemies.length > 0) {
+      setEnemies(prev => [...prev, ...newEnemies]);
+      setNextEnemyId(prev => prev + newEnemies.length);
+      setSpawnPtr(prev => prev + newEnemies.length);
+    }
+  }, [nextEnemyId, schedule, spawnPtr]);
 
-    setEnemies(prev => [...prev, ...newEnemies]);
-    setNextEnemyId(prev => prev + 5); // Increment by 5 since we added 5 enemies
-  }, [nextEnemyId]);
+  const startGame = useCallback(async () => {
+    if (!address) return;
+    setCounts(new Array(MEME_IMAGES.length).fill(0));
+    setEnemies([]);
+    setProjectiles([]);
+    setNextProjectileId(0);
+    setNextEnemyId(0);
+    setSpawnPtr(0);
+    setGameActive(false);
+    const txHash = await writeGameAsync({ functionName: "startGame" });
+    if (!publicClient || !txHash) {
+      // Unable to confirm tx; bail out early
+      setGameActive(true);
+      return;
+    }
+    try {
+      // Ensure tx is mined before reading
+      await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+    } catch {}
+    // Wait for session to report active
+    try {
+      for (let i = 0; i < 12; i++) {
+        const res = await refetchSession();
+        const tuple = res.data as unknown as [string, bigint, bigint, boolean] | undefined;
+        if (Array.isArray(tuple) && tuple[3]) break;
+        await new Promise(r => setTimeout(r, 300));
+      }
+    } catch {}
+    // Wait for schedule to be available to avoid race conditions
+    try {
+      for (let i = 0; i < 12; i++) {
+        const res = await refetchSchedule();
+        const arr = res.data as unknown as number[] | undefined;
+        if (Array.isArray(arr) && arr.length > 0) break;
+        await new Promise(r => setTimeout(r, 500));
+      }
+    } catch {}
+    setGameActive(true);
+    // Kick off first wave immediately if schedule already loaded
+    try {
+      const res = await refetchSchedule();
+      const arr = res.data as unknown as number[] | undefined;
+      if (Array.isArray(arr) && arr.length > 0) {
+        spawnWave();
+      }
+    } catch {}
+  }, [address, publicClient, refetchSchedule, refetchSession, spawnWave, writeGameAsync]);
+
+  const submit = useCallback(async () => {
+    if (!address) return;
+    if (!Array.isArray(schedule) || schedule.length === 0) return;
+    setSubmitting(true);
+    try {
+      const len = enemyTypesCount ? Number(enemyTypesCount) : MEME_IMAGES.length;
+      const arr = new Array(len).fill(0).map((_, i) => Number(counts[i] || 0));
+      await writeGameAsync({ functionName: "submitResults", args: [arr] });
+      setGameActive(false);
+    } finally {
+      setSubmitting(false);
+    }
+  }, [address, counts, enemyTypesCount, schedule, writeGameAsync]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -84,13 +197,12 @@ export default function GamePage() {
         case "S":
           setKeys(prev => ({ ...prev, down: true }));
           break;
-        case " ": // Space key
+        case " ":
           event.preventDefault();
           shoot();
           break;
       }
     };
-
     const handleKeyUp = (event: KeyboardEvent) => {
       switch (event.key) {
         case "ArrowUp":
@@ -105,7 +217,6 @@ export default function GamePage() {
           break;
       }
     };
-
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     return () => {
@@ -114,82 +225,62 @@ export default function GamePage() {
     };
   }, [shoot]);
 
-  // Smooth movement based on held keys
   useEffect(() => {
     const gameLoop = setInterval(() => {
       setCatPosition(prev => {
-        let newPosition = prev;
-
-        if (keys.up) {
-          newPosition = Math.max(0, newPosition - 1);
-        }
-        if (keys.down) {
-          newPosition = Math.min(90, newPosition + 1);
-        }
-
-        return newPosition;
+        let np = prev;
+        if (keys.up) np = Math.max(0, np - 1);
+        if (keys.down) np = Math.min(90, np + 1);
+        return np;
       });
-    }, 16); // ~60fps
-
+    }, 16);
     return () => clearInterval(gameLoop);
   }, [keys]);
 
-  // Enemy wave spawning timer
   useEffect(() => {
-    const waveTimer = setInterval(() => {
-      spawnWave(); // Spawn 5 enemies (one per row) every interval
-    }, 3500); // Every 3.5 seconds
+    if (!gameActive || !Array.isArray(schedule) || schedule.length === 0) return;
+    const timer = setInterval(() => {
+      spawnWave();
+    }, WAVE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [gameActive, schedule, spawnWave]);
 
-    return () => clearInterval(waveTimer);
-  }, [spawnWave]);
+  // Spawn the very first wave immediately when schedule arrives
+  useEffect(() => {
+    if (gameActive && Array.isArray(schedule) && schedule.length > 0 && spawnPtr === 0) {
+      spawnWave();
+    }
+  }, [gameActive, schedule, spawnPtr, spawnWave]);
 
-  // Animation loop for projectiles and enemies
   useEffect(() => {
     let animationId: number;
-
     const animate = () => {
       setProjectiles(prev => {
-        // Move projectiles
-        const movedProjectiles = prev
-          .map(projectile => ({
-            ...projectile,
-            x: projectile.x + 3, // Move 3 pixels to the right each frame
-          }))
-          .filter(projectile => projectile.x < window.innerWidth + 50);
-
-        projectilesRef.current = movedProjectiles;
-        return movedProjectiles;
+        const moved = prev.map(p => ({ ...p, x: p.x + 3 })).filter(p => p.x < window.innerWidth + 50);
+        projectilesRef.current = moved;
+        return moved;
       });
 
       setEnemies(prev => {
-        // Move enemies
-        const movedEnemies = prev
-          .map(enemy => ({
-            ...enemy,
-            x: enemy.x - 2, // Move 2 pixels to the left each frame
-          }))
-          .filter(enemy => enemy.x > -100);
+        const movedEnemies = prev.map(e => ({ ...e, x: e.x - 2 })).filter(e => e.x > -100);
 
         enemiesRef.current = movedEnemies;
 
-        // Check for collisions
         const hitProjectileIds = new Set<number>();
         const hitEnemyIds = new Set<number>();
 
         projectilesRef.current.forEach(projectile => {
           movedEnemies.forEach(enemy => {
-            // Simple collision detection (rectangular overlap)
             const projectileLeft = projectile.x;
-            const projectileRight = projectile.x + 100; // projectile width
+            const projectileRight = projectile.x + 100;
             const projectileTop = projectile.y;
-            const projectileBottom = projectile.y + 100; // projectile height
+            const projectileBottom = projectile.y + 100;
 
             const enemyLeft = enemy.x;
-            const enemyRight = enemy.x + 80; // enemy width
+            const enemyRight = enemy.x + 80;
             const enemyTop = enemy.y;
-            const enemyBottom = enemy.y + 80; // enemy height
+            const enemyBottom = enemy.y + 80;
 
-            // Check if rectangles overlap
             if (
               projectileLeft < enemyRight &&
               projectileRight > enemyLeft &&
@@ -198,54 +289,88 @@ export default function GamePage() {
             ) {
               hitProjectileIds.add(projectile.id);
               hitEnemyIds.add(enemy.id);
+              setCounts(prev => {
+                const next = [...prev];
+                const idx = enemy.typeIdx % next.length;
+                next[idx] = (next[idx] || 0) + 1;
+                return next;
+              });
             }
           });
         });
 
-        // Remove hit projectiles
         if (hitProjectileIds.size > 0) {
-          setProjectiles(prevProjectiles => prevProjectiles.filter(projectile => !hitProjectileIds.has(projectile.id)));
+          setProjectiles(prevProjectiles => prevProjectiles.filter(p => !hitProjectileIds.has(p.id)));
         }
-
-        // Remove hit enemies
-        return movedEnemies.filter(enemy => !hitEnemyIds.has(enemy.id));
+        return movedEnemies.filter(e => !hitEnemyIds.has(e.id));
       });
 
       animationId = requestAnimationFrame(animate);
     };
-
     animationId = requestAnimationFrame(animate);
-
     return () => cancelAnimationFrame(animationId);
   }, []);
+
+  const canSubmit = useMemo(() => {
+    if (!gameActive) return false;
+    if (!Array.isArray(schedule) || schedule.length === 0) return false;
+    const allSpawned = spawnPtr >= schedule.length;
+    const noEnemiesOnScreen = enemies.length === 0;
+    return allSpawned && noEnemiesOnScreen;
+  }, [enemies.length, gameActive, schedule, spawnPtr]);
 
   return (
     <div
       className="h-full w-full relative bg-cover bg-center bg-no-repeat overflow-hidden"
-      style={{
-        backgroundImage: "url('/game/main-bg.jpg')",
-      }}
+      style={{ backgroundImage: "url('/game/main-bg.jpg')" }}
     >
-      {/* Cat on the left side */}
-      <div
-        className="absolute left-8"
-        style={{
-          top: `${catPosition}%`,
-        }}
-      >
+      {/* Top HUD */}
+      <div className="absolute top-2 left-2 right-2 flex items-center gap-4 z-20">
+        <button
+          className="px-3 py-1 rounded bg-blue-500 text-white disabled:opacity-50"
+          onClick={startGame}
+          disabled={!address || submitting}
+        >
+          {address ? "Start Game" : "Connect Wallet"}
+        </button>
+        <div className="flex-1">
+          <div className="h-2 bg-gray-700 rounded">
+            <div className="h-2 bg-green-500 rounded" style={{ width: `${progressPct}%` }} />
+          </div>
+          <div className="text-white text-xs mt-1">
+            Wave {currentWave}/{wavesTotal} • Kills {totalKilled}/{totalScheduled || 150}
+          </div>
+        </div>
+        <button
+          className="px-3 py-1 rounded bg-emerald-500 text-white disabled:opacity-50"
+          onClick={submit}
+          disabled={!canSubmit || submitting}
+        >
+          {submitting ? "Submitting..." : "Submit Results"}
+        </button>
+      </div>
+
+      {/* Per-enemy counters */}
+      <div className="absolute top-14 left-2 bg-black/50 p-2 rounded text-white z-20 text-xs space-y-1">
+        <div className="opacity-70">
+          Schedule: {totalScheduled} • Spawned: {spawnPtr}
+        </div>
+        {MEME_IMAGES.map((img, i) => (
+          <div key={img} className="flex items-center gap-2">
+            <Image src={`/game/memes/${img}`} alt={img} width={20} height={20} className="object-contain" />
+            <span>x {counts[i] || 0}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Cat */}
+      <div className="absolute left-8" style={{ top: `${catPosition}%` }}>
         <Image src="/cat/cat1.png" alt="Player Cat" width={120} height={120} className="object-contain" />
       </div>
 
       {/* Projectiles */}
       {projectiles.map(projectile => (
-        <div
-          key={projectile.id}
-          className="absolute"
-          style={{
-            left: `${projectile.x}px`,
-            top: `${projectile.y}px`,
-          }}
-        >
+        <div key={projectile.id} className="absolute" style={{ left: `${projectile.x}px`, top: `${projectile.y}px` }}>
           <Image
             src="/game/shoot.png"
             alt="Projectile"
@@ -259,14 +384,7 @@ export default function GamePage() {
 
       {/* Enemies */}
       {enemies.map(enemy => (
-        <div
-          key={enemy.id}
-          className="absolute"
-          style={{
-            left: `${enemy.x}px`,
-            top: `${enemy.y}px`,
-          }}
-        >
+        <div key={enemy.id} className="absolute" style={{ left: `${enemy.x}px`, top: `${enemy.y}px` }}>
           <Image
             src={`/game/memes/${enemy.image}`}
             alt="Enemy Meme"
@@ -277,15 +395,11 @@ export default function GamePage() {
         </div>
       ))}
 
-      {/* Game content */}
+      {/* Helper text */}
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-white drop-shadow-lg mb-4">Hello World</h1>
-          <p className="text-white drop-shadow-lg">
-            Use Arrow Keys or WASD to move the cat up and down!
-            <br />
-            Press SPACE to shoot!
-          </p>
+          <h1 className="text-4xl font-bold text-white drop-shadow-lg mb-2">Defeat Meme</h1>
+          <p className="text-white drop-shadow-lg">Use Arrow Keys or WASD to move! Press SPACE to shoot.</p>
         </div>
       </div>
     </div>

@@ -6,6 +6,336 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 
 const deployedContracts = {
   31337: {
+    GameEngine: {
+      address: "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      abi: [
+        {
+          inputs: [
+            {
+              internalType: "uint8",
+              name: "_enemyTypesCount",
+              type: "uint8",
+            },
+            {
+              internalType: "uint8",
+              name: "_waveCount",
+              type: "uint8",
+            },
+            {
+              internalType: "uint8",
+              name: "_waveSize",
+              type: "uint8",
+            },
+            {
+              internalType: "uint40",
+              name: "_timeoutBlocks",
+              type: "uint40",
+            },
+          ],
+          stateMutability: "nonpayable",
+          type: "constructor",
+        },
+        {
+          anonymous: false,
+          inputs: [
+            {
+              indexed: true,
+              internalType: "address",
+              name: "previousOwner",
+              type: "address",
+            },
+            {
+              indexed: true,
+              internalType: "address",
+              name: "newOwner",
+              type: "address",
+            },
+          ],
+          name: "OwnershipTransferred",
+          type: "event",
+        },
+        {
+          inputs: [],
+          name: "TIMEOUT_BLOCKS",
+          outputs: [
+            {
+              internalType: "uint40",
+              name: "",
+              type: "uint40",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "TOTAL_ENEMIES",
+          outputs: [
+            {
+              internalType: "uint16",
+              name: "",
+              type: "uint16",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "WAVE_COUNT",
+          outputs: [
+            {
+              internalType: "uint8",
+              name: "",
+              type: "uint8",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "WAVE_SIZE",
+          outputs: [
+            {
+              internalType: "uint8",
+              name: "",
+              type: "uint8",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "enemyTypesCount",
+          outputs: [
+            {
+              internalType: "uint8",
+              name: "",
+              type: "uint8",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "player",
+              type: "address",
+            },
+          ],
+          name: "getActiveSession",
+          outputs: [
+            {
+              internalType: "bytes32",
+              name: "seed",
+              type: "bytes32",
+            },
+            {
+              internalType: "uint40",
+              name: "startBlock",
+              type: "uint40",
+            },
+            {
+              internalType: "uint40",
+              name: "deadline",
+              type: "uint40",
+            },
+            {
+              internalType: "bool",
+              name: "active",
+              type: "bool",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "getMySchedule",
+          outputs: [
+            {
+              internalType: "uint8[]",
+              name: "seq",
+              type: "uint8[]",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "player",
+              type: "address",
+            },
+            {
+              internalType: "uint256",
+              name: "index",
+              type: "uint256",
+            },
+          ],
+          name: "getPlay",
+          outputs: [
+            {
+              internalType: "bytes32",
+              name: "seed",
+              type: "bytes32",
+            },
+            {
+              internalType: "uint40",
+              name: "startBlock",
+              type: "uint40",
+            },
+            {
+              internalType: "uint40",
+              name: "endBlock",
+              type: "uint40",
+            },
+            {
+              internalType: "uint8[]",
+              name: "counts",
+              type: "uint8[]",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "player",
+              type: "address",
+            },
+          ],
+          name: "getPlaysCount",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "player",
+              type: "address",
+            },
+          ],
+          name: "getScheduleFor",
+          outputs: [
+            {
+              internalType: "uint8[]",
+              name: "seq",
+              type: "uint8[]",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "player",
+              type: "address",
+            },
+          ],
+          name: "hasActiveSession",
+          outputs: [
+            {
+              internalType: "bool",
+              name: "",
+              type: "bool",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "owner",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "renounceOwnership",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint8",
+              name: "newCount",
+              type: "uint8",
+            },
+          ],
+          name: "setEnemyTypesCount",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [],
+          name: "startGame",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "uint8[]",
+              name: "counts",
+              type: "uint8[]",
+            },
+          ],
+          name: "submitResults",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "newOwner",
+              type: "address",
+            },
+          ],
+          name: "transferOwnership",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+      ],
+      inheritedFunctions: {
+        owner: "@openzeppelin/contracts/access/Ownable.sol",
+        renounceOwnership: "@openzeppelin/contracts/access/Ownable.sol",
+        transferOwnership: "@openzeppelin/contracts/access/Ownable.sol",
+      },
+      deployedOnBlock: 4,
+    },
     PlanetNFT: {
       address: "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
       abi: [
