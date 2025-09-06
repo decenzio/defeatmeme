@@ -72,6 +72,7 @@ export default function GamePage() {
 
   const projectilesRef = useRef<Projectile[]>([]);
   const enemiesRef = useRef<Enemy[]>([]);
+  const killedEnemyIdsRef = useRef<Set<number>>(new Set());
 
   const totalScheduled = useMemo(() => (Array.isArray(schedule) ? schedule.length : 0), [schedule]);
   const totalKilled = useMemo(() => counts.reduce((a, b) => a + b, 0), [counts]);
@@ -130,6 +131,7 @@ export default function GamePage() {
     setNextProjectileId(0);
     setNextEnemyId(0);
     setSpawnPtr(0);
+    killedEnemyIdsRef.current.clear();
     setGameActive(false);
     const txHash = await writeGameAsync({ functionName: "startGame" });
     if (!publicClient || !txHash) {
@@ -289,15 +291,38 @@ export default function GamePage() {
             ) {
               hitProjectileIds.add(projectile.id);
               hitEnemyIds.add(enemy.id);
-              setCounts(prev => {
-                const next = [...prev];
-                const idx = enemy.typeIdx % next.length;
-                next[idx] = (next[idx] || 0) + 1;
-                return next;
-              });
             }
           });
         });
+
+        // Collect all count updates, but only for enemies not already killed
+        const countUpdates: { [key: number]: number } = {};
+        const newlyKilledIds: number[] = [];
+        hitEnemyIds.forEach(enemyId => {
+          if (killedEnemyIdsRef.current.has(enemyId)) return;
+          const enemy = movedEnemies.find(e => e.id === enemyId);
+          if (enemy) {
+            const idx = enemy.typeIdx % MEME_IMAGES.length;
+            countUpdates[idx] = (countUpdates[idx] || 0) + 1;
+            newlyKilledIds.push(enemyId);
+          }
+        });
+
+        // Apply all count updates at once
+        if (Object.keys(countUpdates).length > 0) {
+          setCounts(prev => {
+            const next = [...prev];
+            Object.entries(countUpdates).forEach(([idx, increment]) => {
+              next[parseInt(idx)] = (next[parseInt(idx)] || 0) + increment;
+            });
+            return next;
+          });
+        }
+
+        // Mark newly killed enemies to avoid double counting due to concurrent frames/loops
+        if (newlyKilledIds.length > 0) {
+          newlyKilledIds.forEach(id => killedEnemyIdsRef.current.add(id));
+        }
 
         if (hitProjectileIds.size > 0) {
           setProjectiles(prevProjectiles => prevProjectiles.filter(p => !hitProjectileIds.has(p.id)));
