@@ -2,6 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
+import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import "./AggregatorV3Interface.sol";
 
 interface IPlanetNFT {
@@ -9,7 +11,7 @@ interface IPlanetNFT {
     function recordGameResult(uint256 tokenId, uint256 dayId, uint8[] calldata counts) external;
 }
 
-contract GameEngine is Ownable {
+contract GameEngine is ERC2771Context, Ownable {
     uint8 public immutable WAVE_COUNT;
     uint8 public immutable WAVE_SIZE;
     uint16 public immutable TOTAL_ENEMIES; // WAVE_COUNT * WAVE_SIZE
@@ -76,8 +78,9 @@ contract GameEngine is Ownable {
         uint8 _enemyTypesCount,
         uint8 _waveCount,
         uint8 _waveSize,
-        uint40 _timeoutBlocks
-    ) Ownable() {
+        uint40 _timeoutBlocks,
+        address trustedForwarder
+    ) Ownable() ERC2771Context(trustedForwarder) {
         require(_enemyTypesCount > 0, "enemy types = 0");
         require(_planetNFT != address(0), "planet addr=0");
         planetNFT = IPlanetNFT(_planetNFT);
@@ -172,7 +175,7 @@ contract GameEngine is Ownable {
         return keccak256(abi.encodePacked(
             blockhash(block.number - 1),
             block.prevrandao,
-            msg.sender,
+            _msgSender(),
             _nonce,
             ethPrice,
             btcPrice,
@@ -203,9 +206,9 @@ contract GameEngine is Ownable {
     function startGame() external {
         require(enemyTypesCount > 0, "no enemies");
         // Require a PlanetNFT to play
-        require(planetNFT.ownedPlanet(msg.sender) != 0, "need planet");
+        require(planetNFT.ownedPlanet(_msgSender()) != 0, "need planet");
         // Enforce one active session; allow restart if expired
-        Session memory s = _activeSession[msg.sender];
+        Session memory s = _activeSession[_msgSender()];
         if (s.exists) {
             require(block.number > s.startBlock + TIMEOUT_BLOCKS, "active session");
         }
@@ -213,12 +216,12 @@ contract GameEngine is Ownable {
         // Enhanced randomness using Redstone price feeds + blockchain data
         _nonce++;
         bytes32 seed = generateFunRandomness();
-        _activeSession[msg.sender] = Session({ seed: seed, startBlock: uint40(block.number), exists: true });
+        _activeSession[_msgSender()] = Session({ seed: seed, startBlock: uint40(block.number), exists: true });
     }
 
     // Returns the full schedule (150 uint8 IDs) for the caller's active session
     function getMySchedule() external view returns (uint8[] memory seq) {
-        return getScheduleFor(msg.sender);
+        return getScheduleFor(_msgSender());
     }
 
     function getScheduleFor(address player) public view returns (uint8[] memory seq) {
@@ -233,7 +236,7 @@ contract GameEngine is Ownable {
 
     // Submit results; stores the play and clears session
     function submitResults(uint8[] calldata counts) external {
-        Session memory s = _activeSession[msg.sender];
+        Session memory s = _activeSession[_msgSender()];
         require(s.exists, "no session");
         require(block.number <= s.startBlock + TIMEOUT_BLOCKS, "session expired");
         require(counts.length == enemyTypesCount, "bad length");
@@ -243,7 +246,7 @@ contract GameEngine is Ownable {
         for (uint256 i = 0; i < counts.length; i++) {
             copy[i] = counts[i];
         }
-        _plays[msg.sender].push(Play({
+        _plays[_msgSender()].push(Play({
             seed: s.seed,
             startBlock: s.startBlock,
             endBlock: uint40(block.number),
@@ -255,11 +258,11 @@ contract GameEngine is Ownable {
         for (uint256 i = 0; i < counts.length; i++) {
             dailyDefeats[dayId][uint8(i)] += counts[i];
         }
-        uint256 tokenId = planetNFT.ownedPlanet(msg.sender);
+        uint256 tokenId = planetNFT.ownedPlanet(_msgSender());
         // tokenId must be non-zero since we require it in startGame
         planetNFT.recordGameResult(tokenId, dayId, counts);
 
-        delete _activeSession[msg.sender];
+        delete _activeSession[_msgSender()];
     }
 
     // --- History ---
@@ -283,7 +286,7 @@ contract GameEngine is Ownable {
 
         totalStaked[dayId] += msg.value;
         stakedPerCoin[dayId][coinId] += msg.value;
-        userStakePerCoin[dayId][msg.sender][coinId] += msg.value;
+        userStakePerCoin[dayId][_msgSender()][coinId] += msg.value;
     }
 
     function settleDay(uint256 dayId) external onlyOwner {
@@ -321,21 +324,21 @@ contract GameEngine is Ownable {
 
     function claim(uint256 dayId) external {
         require(daySettled[dayId], "not settled");
-        require(!hasClaimed[dayId][msg.sender], "claimed");
+        require(!hasClaimed[dayId][_msgSender()], "claimed");
 
         uint8 winning = dayWinningCoin[dayId];
         uint256 winnersStake = dayWinnersStake[dayId];
         require(winnersStake > 0, "no winners");
 
-        uint256 userStake = userStakePerCoin[dayId][msg.sender][winning];
+        uint256 userStake = userStakePerCoin[dayId][_msgSender()][winning];
         require(userStake > 0, "no stake");
 
         uint256 payoutPool = dayPayoutPool[dayId];
         uint256 amount = (payoutPool * userStake) / winnersStake;
 
-        hasClaimed[dayId][msg.sender] = true;
+        hasClaimed[dayId][_msgSender()] = true;
 
-        (bool ok, ) = payable(msg.sender).call{value: amount}("");
+        (bool ok, ) = payable(_msgSender()).call{value: amount}("");
         require(ok, "transfer failed");
     }
 
@@ -369,5 +372,33 @@ contract GameEngine is Ownable {
 
     function feeBasisPoints() external pure returns (uint256) {
         return FEE_BPS;
+    }
+
+    // --- ERC2771 overrides ---
+    function _msgSender()
+        internal
+        view
+        override(Context, ERC2771Context)
+        returns (address sender)
+    {
+        return ERC2771Context._msgSender();
+    }
+
+    function _msgData()
+        internal
+        view
+        override(Context, ERC2771Context)
+        returns (bytes calldata)
+    {
+        return ERC2771Context._msgData();
+    }
+
+    function _contextSuffixLength()
+        internal
+        view
+        override(Context, ERC2771Context)
+        returns (uint256)
+    {
+        return ERC2771Context._contextSuffixLength();
     }
 }

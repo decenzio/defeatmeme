@@ -9,9 +9,10 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const planet = await get("PlanetNFT");
 
   // enemyTypesCount=9 (from public/game/memes), waves=30, waveSize=5, timeoutBlocks=40
+  const forwarder = await deployments.get("MinimalForwarder");
   const engine = await deploy("GameEngine", {
     from: deployer,
-    args: [planet.address, 9, 30, 5, 40],
+    args: [planet.address, 9, 30, 5, 40, forwarder.address],
     log: true,
     autoMine: true,
   });

@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Abi, Address } from "viem";
 import { formatEther } from "viem";
-import { useAccount, useChainId, useReadContract } from "wagmi";
+import { encodeFunctionData, zeroAddress } from "viem";
+import { useAccount, useChainId, usePublicClient, useReadContract, useSignTypedData } from "wagmi";
 import { useDeployedContractInfo, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 
 const ENV_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
@@ -12,6 +13,8 @@ const ENV_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 31337);
 export default function RegisterCard() {
   const { address } = useAccount();
   const activeChainId = useChainId();
+  const publicClient = usePublicClient();
+  const { signTypedDataAsync } = useSignTypedData();
   const router = useRouter();
 
   // Load PlanetNFT contract info
@@ -51,7 +54,7 @@ export default function RegisterCard() {
   }) as { data: bigint | undefined };
 
   // Setup write contract for minting
-  const { writeContractAsync: writePlanetAsync, isPending: isMinting } = useScaffoldWriteContract({
+  const { isPending: isMinting } = useScaffoldWriteContract({
     contractName: "PlanetNFT",
   });
 
@@ -66,22 +69,93 @@ export default function RegisterCard() {
     }
 
     try {
-      console.log("Attempting to mint with price:", mintPrice?.toString());
-
-      const tx = await writePlanetAsync({
+      // Build meta-tx call data for PlanetNFT.mint()
+      const data = encodeFunctionData({
+        abi: planetAbi!,
         functionName: "mint",
-        value: mintPrice ?? 0n,
+        args: [],
       });
 
-      console.log("Mint transaction successful:", tx);
-      alert("🎉 Planet minted successfully! Check your wallet.");
+      // Fetch forwarder
+      const res = await fetch(`/api/relay/forwarder?chainId=${ENV_CHAIN_ID}`);
+      const { address: forwarder } = await res.json();
+      if (!forwarder || forwarder === zeroAddress) throw new Error("Forwarder not found");
 
-      // Refresh planet data
-      setTimeout(() => refetch(), 1000);
-      setTimeout(() => refetch(), 3000);
+      // Get forwarder nonce for this sender
+      const nonce = await publicClient!.readContract({
+        address: forwarder as `0x${string}`,
+        abi: [
+          {
+            inputs: [{ name: "from", type: "address" }],
+            name: "getNonce",
+            outputs: [{ name: "", type: "uint256" }],
+            stateMutability: "view",
+            type: "function",
+          },
+        ] as const,
+        functionName: "getNonce",
+        args: [address as `0x${string}`],
+      });
+
+      const req = {
+        from: address as `0x${string}`,
+        to: planetAddress as `0x${string}`,
+        value: mintPrice ?? 0n,
+        gas: 500_000n,
+        nonce: nonce as bigint,
+        data: data as `0x${string}`,
+      };
+
+      // Sign EIP-712 ForwardRequest
+      const domain = {
+        name: "MinimalForwarder",
+        version: "0.0.1",
+        chainId: BigInt(ENV_CHAIN_ID),
+        verifyingContract: forwarder as `0x${string}`,
+      } as const;
+      const types = {
+        ForwardRequest: [
+          { name: "from", type: "address" },
+          { name: "to", type: "address" },
+          { name: "value", type: "uint256" },
+          { name: "gas", type: "uint256" },
+          { name: "nonce", type: "uint256" },
+          { name: "data", type: "bytes" },
+        ],
+      } as const;
+
+      const signature = await signTypedDataAsync({
+        domain,
+        types,
+        primaryType: "ForwardRequest",
+        message: req as any,
+      });
+
+      const exec = await fetch(`/api/relay/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chainId: ENV_CHAIN_ID,
+          request: {
+            from: req.from,
+            to: req.to,
+            value: req.value.toString(),
+            gas: req.gas.toString(),
+            nonce: req.nonce.toString(),
+            data: req.data,
+          },
+          signature,
+        }),
+      });
+      const j = await exec.json();
+      if (!exec.ok) throw new Error(j.error || "Relay failed");
+
+      alert("🎉 Meta-transaction sent by relayer! Hash: " + j.hash);
+      setTimeout(() => refetch(), 1500);
+      setTimeout(() => refetch(), 3500);
     } catch (error: any) {
       console.error("Mint error:", error);
-      alert(`Failed to mint planet: ${error.message ?? "Unknown error"}`);
+      alert(`Failed to submit meta-tx: ${error.message ?? "Unknown error"}`);
     }
   }
 
