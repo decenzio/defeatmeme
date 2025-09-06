@@ -4,6 +4,11 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./AggregatorV3Interface.sol";
 
+interface IPlanetNFT {
+    function ownedPlanet(address owner) external view returns (uint256);
+    function recordGameResult(uint256 tokenId, uint256 dayId, uint8[] calldata counts) external;
+}
+
 contract GameEngine is Ownable {
     uint8 public immutable WAVE_COUNT;
     uint8 public immutable WAVE_SIZE;
@@ -19,6 +24,13 @@ contract GameEngine is Ownable {
 
     // Price feeds enabled flag
     bool public priceFeedsEnabled;
+
+    // Planet NFT
+    IPlanetNFT public planetNFT;
+
+    // Betting constants
+    uint256 public constant FEE_BPS = 2000; // 20%
+    uint256 public constant BPS = 10000;
 
     struct Session {
         bytes32 seed;
@@ -38,13 +50,38 @@ contract GameEngine is Ownable {
 
     uint256 private _nonce;
 
+    // --- Daily defeats (from submitted results) ---
+    // dayId => coinId => defeats
+    mapping(uint256 => mapping(uint8 => uint256)) public dailyDefeats;
+
+    // --- Betting state ---
+    // dayId => total staked (all coins)
+    mapping(uint256 => uint256) public totalStaked;
+    // dayId => coinId => total staked on that coin
+    mapping(uint256 => mapping(uint8 => uint256)) public stakedPerCoin;
+    // dayId => user => coinId => stake
+    mapping(uint256 => mapping(address => mapping(uint8 => uint256))) public userStakePerCoin;
+
+    // Settlement
+    mapping(uint256 => bool) public daySettled;
+    mapping(uint256 => uint8) public dayWinningCoin;
+    // Locked denominators and payout pool at settlement time
+    mapping(uint256 => uint256) public dayWinnersStake; // sum of stakes on the winning coin
+    mapping(uint256 => uint256) public dayPayoutPool;   // totalStaked * (BPS - FEE_BPS) / BPS
+    // Claims
+    mapping(uint256 => mapping(address => bool)) public hasClaimed;
+
     constructor(
+        address _planetNFT,
         uint8 _enemyTypesCount,
         uint8 _waveCount,
         uint8 _waveSize,
         uint40 _timeoutBlocks
     ) Ownable() {
         require(_enemyTypesCount > 0, "enemy types = 0");
+        require(_planetNFT != address(0), "planet addr=0");
+        planetNFT = IPlanetNFT(_planetNFT);
+
         enemyTypesCount = _enemyTypesCount;
         WAVE_COUNT = _waveCount;
         WAVE_SIZE = _waveSize;
@@ -165,6 +202,8 @@ contract GameEngine is Ownable {
 
     function startGame() external {
         require(enemyTypesCount > 0, "no enemies");
+        // Require a PlanetNFT to play
+        require(planetNFT.ownedPlanet(msg.sender) != 0, "need planet");
         // Enforce one active session; allow restart if expired
         Session memory s = _activeSession[msg.sender];
         if (s.exists) {
@@ -211,6 +250,15 @@ contract GameEngine is Ownable {
             counts: copy
         }));
 
+        // Update daily defeats tallies and persist to NFT attributes
+        uint256 dayId = block.timestamp / 1 days;
+        for (uint256 i = 0; i < counts.length; i++) {
+            dailyDefeats[dayId][uint8(i)] += counts[i];
+        }
+        uint256 tokenId = planetNFT.ownedPlanet(msg.sender);
+        // tokenId must be non-zero since we require it in startGame
+        planetNFT.recordGameResult(tokenId, dayId, counts);
+
         delete _activeSession[msg.sender];
     }
 
@@ -223,5 +271,103 @@ contract GameEngine is Ownable {
     function getPlay(address player, uint256 index) external view returns (bytes32 seed, uint40 startBlock, uint40 endBlock, uint8[] memory counts) {
         Play storage p = _plays[player][index];
         return (p.seed, p.startBlock, p.endBlock, p.counts);
+    }
+
+    // --- Betting ---
+
+    function placeBet(uint8 coinId) external payable {
+        require(msg.value > 0, "no value");
+        require(coinId < enemyTypesCount, "bad coin");
+        uint256 dayId = block.timestamp / 1 days;
+        require(!daySettled[dayId], "day settled");
+
+        totalStaked[dayId] += msg.value;
+        stakedPerCoin[dayId][coinId] += msg.value;
+        userStakePerCoin[dayId][msg.sender][coinId] += msg.value;
+    }
+
+    function settleDay(uint256 dayId) external onlyOwner {
+        require(!daySettled[dayId], "already settled");
+
+        // Compute winning coin (most defeats) with deterministic tie-breaker (lowest coinId)
+        uint8 winning = 0;
+        uint256 maxDefeats = 0;
+        uint256 totalDefeatsSum = 0;
+        for (uint8 i = 0; i < enemyTypesCount; i++) {
+            uint256 d = dailyDefeats[dayId][i];
+            totalDefeatsSum += d;
+            if (d > maxDefeats) {
+                maxDefeats = d;
+                winning = i;
+            }
+        }
+        require(totalDefeatsSum > 0, "no defeats");
+
+        daySettled[dayId] = true;
+        dayWinningCoin[dayId] = winning;
+
+        uint256 winnersStake = stakedPerCoin[dayId][winning];
+        dayWinnersStake[dayId] = winnersStake;
+
+        if (winnersStake == 0) {
+            // No winners; per spec funds remain in contract (treasury)
+            dayPayoutPool[dayId] = 0;
+        } else {
+            uint256 pool = totalStaked[dayId];
+            uint256 payout = (pool * (BPS - FEE_BPS)) / BPS; // 80% to winners
+            dayPayoutPool[dayId] = payout;
+        }
+    }
+
+    function claim(uint256 dayId) external {
+        require(daySettled[dayId], "not settled");
+        require(!hasClaimed[dayId][msg.sender], "claimed");
+
+        uint8 winning = dayWinningCoin[dayId];
+        uint256 winnersStake = dayWinnersStake[dayId];
+        require(winnersStake > 0, "no winners");
+
+        uint256 userStake = userStakePerCoin[dayId][msg.sender][winning];
+        require(userStake > 0, "no stake");
+
+        uint256 payoutPool = dayPayoutPool[dayId];
+        uint256 amount = (payoutPool * userStake) / winnersStake;
+
+        hasClaimed[dayId][msg.sender] = true;
+
+        (bool ok, ) = payable(msg.sender).call{value: amount}("");
+        require(ok, "transfer failed");
+    }
+
+    // --- Views for UI ---
+
+    function getDayInfo(uint256 dayId) external view returns (
+        bool settled,
+        uint8 winningCoin,
+        uint256 totalPool,
+        uint256[] memory stakesPerCoin,
+        uint256[] memory defeatsPerCoin
+    ) {
+        settled = daySettled[dayId];
+        winningCoin = dayWinningCoin[dayId];
+        totalPool = totalStaked[dayId];
+
+        stakesPerCoin = new uint256[](enemyTypesCount);
+        defeatsPerCoin = new uint256[](enemyTypesCount);
+        for (uint8 i = 0; i < enemyTypesCount; i++) {
+            stakesPerCoin[i] = stakedPerCoin[dayId][i];
+            defeatsPerCoin[i] = dailyDefeats[dayId][i];
+        }
+    }
+
+    function getUserStake(uint256 dayId, address user) external view returns (uint256[] memory stakesPerCoin) {
+        stakesPerCoin = new uint256[](enemyTypesCount);
+        for (uint8 i = 0; i < enemyTypesCount; i++) {
+            stakesPerCoin[i] = userStakePerCoin[dayId][user][i];
+        }
+    }
+
+    function feeBasisPoints() external pure returns (uint256) {
+        return FEE_BPS;
     }
 }

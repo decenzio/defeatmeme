@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { useAccount, usePublicClient } from "wagmi";
+import BettingCard from "~~/components/custom/BettingCard";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 
 interface Projectile {
@@ -345,87 +346,95 @@ export default function GamePage() {
   }, [enemies.length, gameActive, schedule, spawnPtr]);
 
   return (
-    <div
-      className="h-full w-full relative bg-cover bg-center bg-no-repeat overflow-hidden"
-      style={{ backgroundImage: "url('/game/main-bg.jpg')" }}
-    >
-      {/* Top HUD */}
-      <div className="absolute top-2 left-2 right-2 flex items-center gap-4 z-20">
-        <button
-          className="px-3 py-1 rounded bg-blue-500 text-white disabled:opacity-50"
-          onClick={startGame}
-          disabled={!address || submitting}
-        >
-          {address ? "Start Game" : "Connect Wallet"}
-        </button>
-        <div className="flex-1">
-          <div className="h-2 bg-gray-700 rounded">
-            <div className="h-2 bg-green-500 rounded" style={{ width: `${progressPct}%` }} />
+    <div className="min-h-screen">
+      {/* Game Area */}
+      <div
+        className="h-screen w-full relative bg-cover bg-center bg-no-repeat overflow-hidden"
+        style={{ backgroundImage: "url('/game/main-bg.jpg')" }}
+      >
+        {/* Top HUD */}
+        <div className="absolute top-2 left-2 right-2 flex items-center gap-4 z-20">
+          <button
+            className="px-3 py-1 rounded bg-blue-500 text-white disabled:opacity-50"
+            onClick={startGame}
+            disabled={!address || submitting}
+          >
+            {address ? "Start Game" : "Connect Wallet"}
+          </button>
+          <div className="flex-1">
+            <div className="h-2 bg-gray-700 rounded">
+              <div className="h-2 bg-green-500 rounded" style={{ width: `${progressPct}%` }} />
+            </div>
+            <div className="text-white text-xs mt-1">
+              Wave {currentWave}/{wavesTotal} • Kills {totalKilled}/{totalScheduled || 150}
+            </div>
           </div>
-          <div className="text-white text-xs mt-1">
-            Wave {currentWave}/{wavesTotal} • Kills {totalKilled}/{totalScheduled || 150}
-          </div>
+          <button
+            className="px-3 py-1 rounded bg-emerald-500 text-white disabled:opacity-50"
+            onClick={submit}
+            disabled={!canSubmit || submitting}
+          >
+            {submitting ? "Submitting..." : "Submit Results"}
+          </button>
         </div>
-        <button
-          className="px-3 py-1 rounded bg-emerald-500 text-white disabled:opacity-50"
-          onClick={submit}
-          disabled={!canSubmit || submitting}
-        >
-          {submitting ? "Submitting..." : "Submit Results"}
-        </button>
-      </div>
 
-      {/* Per-enemy counters */}
-      <div className="absolute top-14 left-2 bg-black/50 p-2 rounded text-white z-20 text-xs space-y-1">
-        <div className="opacity-70">
-          Schedule: {totalScheduled} • Spawned: {spawnPtr}
+        {/* Per-enemy counters */}
+        <div className="absolute top-14 left-2 bg-black/50 p-2 rounded text-white z-20 text-xs space-y-1">
+          <div className="opacity-70">
+            Schedule: {totalScheduled} • Spawned: {spawnPtr}
+          </div>
+          {MEME_IMAGES.map((img, i) => (
+            <div key={img} className="flex items-center gap-2">
+              <Image src={`/game/memes/${img}`} alt={img} width={20} height={20} className="object-contain" />
+              <span>x {counts[i] || 0}</span>
+            </div>
+          ))}
         </div>
-        {MEME_IMAGES.map((img, i) => (
-          <div key={img} className="flex items-center gap-2">
-            <Image src={`/game/memes/${img}`} alt={img} width={20} height={20} className="object-contain" />
-            <span>x {counts[i] || 0}</span>
+
+        {/* Cat */}
+        <div className="absolute left-8" style={{ top: `${catPosition}%` }}>
+          <Image src="/cat/cat1.png" alt="Player Cat" width={120} height={120} className="object-contain" />
+        </div>
+
+        {/* Projectiles */}
+        {projectiles.map(projectile => (
+          <div key={projectile.id} className="absolute" style={{ left: `${projectile.x}px`, top: `${projectile.y}px` }}>
+            <Image
+              src="/game/shoot.png"
+              alt="Projectile"
+              width={100}
+              height={100}
+              className="object-contain"
+              style={{ transform: "rotate(90deg)" }}
+            />
           </div>
         ))}
+
+        {/* Enemies */}
+        {enemies.map(enemy => (
+          <div key={enemy.id} className="absolute" style={{ left: `${enemy.x}px`, top: `${enemy.y}px` }}>
+            <Image
+              src={`/game/memes/${enemy.image}`}
+              alt="Enemy Meme"
+              width={80}
+              height={80}
+              className="object-contain"
+            />
+          </div>
+        ))}
+
+        {/* Helper text */}
+        <div className="h-full flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-white drop-shadow-lg mb-2">Defeat Meme</h1>
+            <p className="text-white drop-shadow-lg">Use Arrow Keys or WASD to move! Press SPACE to shoot.</p>
+          </div>
+        </div>
       </div>
 
-      {/* Cat */}
-      <div className="absolute left-8" style={{ top: `${catPosition}%` }}>
-        <Image src="/cat/cat1.png" alt="Player Cat" width={120} height={120} className="object-contain" />
-      </div>
-
-      {/* Projectiles */}
-      {projectiles.map(projectile => (
-        <div key={projectile.id} className="absolute" style={{ left: `${projectile.x}px`, top: `${projectile.y}px` }}>
-          <Image
-            src="/game/shoot.png"
-            alt="Projectile"
-            width={100}
-            height={100}
-            className="object-contain"
-            style={{ transform: "rotate(90deg)" }}
-          />
-        </div>
-      ))}
-
-      {/* Enemies */}
-      {enemies.map(enemy => (
-        <div key={enemy.id} className="absolute" style={{ left: `${enemy.x}px`, top: `${enemy.y}px` }}>
-          <Image
-            src={`/game/memes/${enemy.image}`}
-            alt="Enemy Meme"
-            width={80}
-            height={80}
-            className="object-contain"
-          />
-        </div>
-      ))}
-
-      {/* Helper text */}
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-white drop-shadow-lg mb-2">Defeat Meme</h1>
-          <p className="text-white drop-shadow-lg">Use Arrow Keys or WASD to move! Press SPACE to shoot.</p>
-        </div>
+      {/* Betting Section */}
+      <div className="py-8 px-4 bg-base-100">
+        <BettingCard />
       </div>
     </div>
   );

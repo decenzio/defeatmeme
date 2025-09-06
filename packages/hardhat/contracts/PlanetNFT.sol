@@ -17,7 +17,16 @@ contract PlanetNFT is ERC721, Ownable {
     
     // Minting price (0 for free minting)
     uint256 public mintPrice = 0;
-    
+
+    // GameEngine authorized writer
+    address public gameEngine;
+
+    // Lifetime defeats: tokenId => coinId => count
+    mapping(uint256 => mapping(uint8 => uint256)) public lifetimeDefeats;
+
+    // Per-day defeats: tokenId => dayId => coinId => count
+    mapping(uint256 => mapping(uint256 => mapping(uint8 => uint256))) public dayDefeats;
+
     event PlanetMinted(address indexed owner, uint256 indexed tokenId);
 
     constructor(string memory baseURI) 
@@ -33,6 +42,16 @@ contract PlanetNFT is ERC721, Ownable {
     
     function setMintPrice(uint256 newPrice) external onlyOwner {
         mintPrice = newPrice;
+    }
+
+    function setGameEngine(address ge) external onlyOwner {
+        require(ge != address(0), "ge=0");
+        gameEngine = ge;
+    }
+
+    modifier onlyGameEngine() {
+        require(msg.sender == gameEngine, "not engine");
+        _;
     }
 
     function _baseURI() internal view override returns (string memory) {
@@ -71,14 +90,45 @@ contract PlanetNFT is ERC721, Ownable {
     function totalSupply() external view returns (uint256) {
         return _nextId - 1;
     }
-    
+
+    /**
+     * @dev Record per-day and lifetime game results (only GameEngine)
+     */
+    function recordGameResult(uint256 tokenId, uint256 dayId, uint8[] calldata counts) external onlyGameEngine {
+        require(_ownerOf(tokenId) != address(0), "bad token");
+        for (uint256 i = 0; i < counts.length; i++) {
+            lifetimeDefeats[tokenId][uint8(i)] += counts[i];
+            dayDefeats[tokenId][dayId][uint8(i)] += counts[i];
+        }
+    }
+
+    /**
+     * @dev Returns per-day counts as an array sized by `types`
+     */
+    function getDailyCounts(uint256 tokenId, uint256 dayId, uint8 types) external view returns (uint256[] memory arr) {
+        arr = new uint256[](types);
+        for (uint8 i = 0; i < types; i++) {
+            arr[i] = dayDefeats[tokenId][dayId][i];
+        }
+    }
+
+    /**
+     * @dev Returns lifetime counts as an array sized by `types`
+     */
+    function getLifetimeCounts(uint256 tokenId, uint8 types) external view returns (uint256[] memory arr) {
+        arr = new uint256[](types);
+        for (uint8 i = 0; i < types; i++) {
+            arr[i] = lifetimeDefeats[tokenId][i];
+        }
+    }
+
     /**
      * @dev Withdraw contract balance (only owner)
      */
     function withdraw() external onlyOwner {
         uint256 balance = address(this).balance;
         require(balance > 0, "Planet: no funds to withdraw");
-        
+
         (bool success, ) = payable(owner()).call{value: balance}("");
         require(success, "Planet: withdrawal failed");
     }
