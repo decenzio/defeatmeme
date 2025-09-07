@@ -20,6 +20,28 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Wire GameEngine to PlanetNFT to allow recording results
   await execute("PlanetNFT", { from: deployer, log: true }, "setGameEngine", engine.address);
 
+  // Disable price feeds on testnet (Redstone feeds don't exist on Zircuit Garfield)
+  if (hre.network.name === "zircuitGarfieldTestnet") {
+    await execute("GameEngine", { from: deployer, log: true }, "disablePriceFeeds");
+    //log(`🔧 Disabled price feeds for testnet deployment`);
+  }
+
+  // Ensure GameEngine points to the current PlanetNFT (in case of reused engine after Planet redeploy)
+  try {
+    const currentPlanet = (await deployments.read("GameEngine", "planetNFT")) as string;
+    if (currentPlanet.toLowerCase() !== planet.address.toLowerCase()) {
+      try {
+        await execute("GameEngine", { from: deployer, log: true }, "setPlanetNFT", planet.address);
+        log(`🔧 Updated GameEngine.planetNFT to ${planet.address}`);
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      } catch (e) {
+        log(
+          `⚠️ GameEngine.planetNFT mismatch (${currentPlanet} vs ${planet.address}) but setPlanetNFT is unavailable. Consider redeploying GameEngine.`,
+        );
+      }
+    }
+  } catch {}
+
   log(`✅ GameEngine deployed at ${engine.address} and wired to PlanetNFT ${planet.address}`);
 };
 
