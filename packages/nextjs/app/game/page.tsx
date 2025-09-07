@@ -7,6 +7,7 @@ import { encodeFunctionData } from "viem";
 import { useAccount, usePublicClient, useSignTypedData } from "wagmi";
 import deployedContracts from "~~/contracts/deployedContracts";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
+import { useGolemDB } from "~~/hooks/scaffold-eth/useGolemDB";
 
 const BettingCard = dynamic(() => import("~~/components/custom/BettingCard"), {
   ssr: false,
@@ -55,6 +56,7 @@ export default function GamePage() {
   const { address } = useAccount();
   const publicClient = usePublicClient();
   const { signTypedDataAsync } = useSignTypedData();
+  const { saveGameResult } = useGolemDB();
 
   const { data: enemyTypesCount } = useScaffoldReadContract({
     contractName: "GameEngine",
@@ -291,9 +293,14 @@ export default function GamePage() {
     if (!address) return;
     if (!Array.isArray(schedule) || schedule.length === 0) return;
     setSubmitting(true);
+
+    let transactionHash: string | undefined;
+    let blockNumber: number | undefined;
+
     try {
       const len = enemyTypesCount ? Number(enemyTypesCount) : MEME_IMAGES.length;
       const arr = new Array(len).fill(0).map((_, i) => Number(counts[i] || 0));
+
       try {
         const data = encodeFunctionData({
           abi: gameEngine.abi as any,
@@ -368,14 +375,44 @@ export default function GamePage() {
         });
         const j = await res.json();
         if (!res.ok) throw new Error(j.error || "Relay failed");
+
+        transactionHash = j.txHash;
+        blockNumber = j.blockNumber;
       } catch {
-        await writeGameAsync({ functionName: "submitResults", args: [arr] });
+        const tx = await writeGameAsync({ functionName: "submitResults", args: [arr] });
+        transactionHash = tx;
+
+        // Wait for transaction to be mined to get block number
+        if (publicClient && tx) {
+          try {
+            const receipt = await publicClient.waitForTransactionReceipt({ hash: tx as `0x${string}` });
+            blockNumber = Number(receipt.blockNumber);
+          } catch (e) {
+            console.warn("Could not get transaction receipt:", e);
+          }
+        }
       }
+
+      // Save to GolemDB after successful blockchain submission
+      try {
+        const gameSession = `session_${Date.now()}`;
+        await saveGameResult({
+          killsByType: arr,
+          transactionHash,
+          blockNumber,
+          gameSession,
+        });
+        console.log("✅ Game result saved to GolemDB");
+      } catch (golemErr) {
+        console.warn("⚠️ Failed to save to GolemDB:", golemErr);
+        // Don't fail the whole submission if GolemDB fails
+      }
+
       setGameActive(false);
     } finally {
       setSubmitting(false);
     }
-  }, [address, counts, enemyTypesCount, schedule, writeGameAsync, publicClient, signTypedDataAsync]);
+  }, [address, counts, enemyTypesCount, schedule, writeGameAsync, publicClient, signTypedDataAsync, saveGameResult]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
