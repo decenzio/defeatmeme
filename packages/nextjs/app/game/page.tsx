@@ -92,6 +92,9 @@ export default function GamePage() {
   const [counts, setCounts] = useState<number[]>(() => new Array(MEME_IMAGES.length).fill(0));
   const [submitting, setSubmitting] = useState(false);
   const [showEndPopup, setShowEndPopup] = useState(false);
+  const [debugSessionActive, setDebugSessionActive] = useState<boolean>(false);
+  const [debugScheduleLen, setDebugScheduleLen] = useState<number>(0);
+  const [debugMsgs, setDebugMsgs] = useState<string[]>([]);
 
   const projectilesRef = useRef<Projectile[]>([]);
   const enemiesRef = useRef<Enemy[]>([]);
@@ -171,8 +174,24 @@ export default function GamePage() {
     setGameActive(false);
     setShowEndPopup(false);
 
-    // Prepare meta-tx for startGame()
+    // Quick sanity checks before starting
     try {
+      // Ensure user owns a Planet NFT
+      try {
+        const planet = deployedContracts[CHAIN_ID].PlanetNFT;
+        const tokenId = await publicClient!.readContract({
+          address: planet.address as `0x${string}`,
+          abi: planet.abi as any,
+          functionName: "ownedPlanet",
+          args: [address as `0x${string}`],
+        });
+        if ((tokenId as bigint) === 0n) {
+          alert("You need to mint a Planet NFT first.");
+          return;
+        }
+      } catch {}
+
+      // Prepare meta-tx for startGame()
       const data = encodeFunctionData({
         abi: gameEngine.abi as any,
         functionName: "startGame",
@@ -184,6 +203,19 @@ export default function GamePage() {
       const fw = await fetch(`/api/relay/forwarder?chainId=${CHAIN_ID_NUM}`);
       const { address: forwarder } = await fw.json();
       if (!forwarder) throw new Error("Forwarder not found");
+      // Verify game trusts this forwarder (ERC2771)
+      try {
+        const trusted = await publicClient!.readContract({
+          address: engine,
+          abi: gameEngine.abi as any,
+          functionName: "isTrustedForwarder",
+          args: [forwarder as `0x${string}`],
+        });
+        if (!trusted) {
+          alert("Forwarder not trusted by GameEngine on this chain. Check deployment wiring.");
+          return;
+        }
+      } catch {}
       const nonce = await publicClient!.readContract({
         address: forwarder as `0x${string}`,
         abi: [
@@ -244,47 +276,75 @@ export default function GamePage() {
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "Relay failed");
-    } catch {
-      // fallback to direct tx if relay fails
-      const txHash = await writeGameAsync({ functionName: "startGame" });
-      if (publicClient && txHash) {
+      // Wait for meta-tx receipt to ensure session is created
+      if (publicClient && j.hash) {
         try {
-          await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+          await publicClient.waitForTransactionReceipt({ hash: j.hash as `0x${string}` });
         } catch {}
+      }
+    } catch (e: any) {
+      alert(`Start game failed: ${e?.message || "unknown error"}`);
+      try {
+        // fallback to direct tx if relay fails
+        const txHash = await writeGameAsync({ functionName: "startGame" });
+        if (publicClient && txHash) {
+          try {
+            await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+          } catch {}
+        }
+      } catch (e2: any) {
+        alert(`Direct start failed: ${e2?.message || "unknown error"}`);
+        return;
       }
     }
 
-    // Wait for session to report active
+    // Wait for session to report active (allow more time on testnets)
     try {
-      for (let i = 0; i < 12; i++) {
+      let active = false;
+      for (let i = 0; i < 30; i++) {
         const res = await refetchSession();
         const tuple = res.data as unknown as [string, bigint, bigint, boolean] | undefined;
-        if (Array.isArray(tuple) && tuple[3]) break;
-        await new Promise(r => setTimeout(r, 300));
+        if (Array.isArray(tuple) && tuple[3]) {
+          active = true;
+          setDebugSessionActive(true);
+          break;
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      if (!active) {
+        console.warn("Session did not become active in time");
+        setDebugMsgs(prev => [...prev, "Session inactive after 30s"]);
       }
     } catch {}
-    // Wait for schedule to be available to avoid race conditions
+
+    // Wait for schedule to be available to avoid race conditions (longer window)
     try {
-      for (let i = 0; i < 12; i++) {
-        const res = await refetchSchedule();
-        const arr = res.data as unknown as number[] | undefined;
-        if (Array.isArray(arr) && arr.length > 0) break;
-        await new Promise(r => setTimeout(r, 500));
-      }
-    } catch {}
-    // Kick off only after schedule is definitely available
-    try {
-      for (let i = 0; i < 12; i++) {
+      let hasSchedule = false;
+      for (let i = 0; i < 30; i++) {
         const res = await refetchSchedule();
         const arr = res.data as unknown as number[] | undefined;
         if (Array.isArray(arr) && arr.length > 0) {
-          setGameActive(true);
-          spawnWave();
+          hasSchedule = true;
+          setDebugScheduleLen(arr.length);
           break;
         }
-        await new Promise(r => setTimeout(r, 300));
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      if (!hasSchedule) {
+        const msg = "Game schedule didn't arrive. Please try Start Game again in a moment.";
+        setDebugMsgs(prev => [...prev, msg]);
+        alert(msg);
+        return;
       }
     } catch {}
+
+    // Enable game loop and spawn first wave proactively
+    setGameActive(true);
+    setTimeout(() => {
+      try {
+        spawnWave();
+      } catch {}
+    }, 200);
   }, [address, publicClient, refetchSchedule, refetchSession, signTypedDataAsync, spawnWave, writeGameAsync]);
 
   const submit = useCallback(async () => {
@@ -583,6 +643,9 @@ export default function GamePage() {
             </div>
             <div className="text-white text-xs mt-1">
               Wave {currentWave}/{wavesTotal} • Kills {totalKilled}/{totalScheduled || 150}
+              <span className="opacity-60 ml-3">
+                (session: {debugSessionActive ? "on" : "off"}, schedule: {debugScheduleLen})
+              </span>
             </div>
           </div>
           <button
@@ -599,6 +662,13 @@ export default function GamePage() {
           <div className="opacity-70">
             Schedule: {totalScheduled} • Spawned: {spawnPtr}
           </div>
+          {debugMsgs.length > 0 && (
+            <div className="text-yellow-300/90">
+              {debugMsgs.map((m, i) => (
+                <div key={i}>⚠️ {m}</div>
+              ))}
+            </div>
+          )}
           {MEME_IMAGES.map((img, i) => (
             <div key={img} className="flex items-center gap-2">
               <Image src={`/game/memes/${img}`} alt={img} width={20} height={20} className="object-contain" />

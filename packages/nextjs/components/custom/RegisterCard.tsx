@@ -54,7 +54,7 @@ export default function RegisterCard() {
   }) as { data: bigint | undefined };
 
   // Setup write contract for minting
-  const { isPending: isMinting, writeContractAsync: writePlanetAsync } = useScaffoldWriteContract({
+  const { isPending: isMinting } = useScaffoldWriteContract({
     contractName: "PlanetNFT",
   });
 
@@ -160,22 +160,18 @@ export default function RegisterCard() {
         refetchHasPlanet();
       }, 3000);
     } catch (error: any) {
-      console.error("Meta-tx mint failed, trying direct tx:", error);
-      try {
-        const txHash = await writePlanetAsync({ functionName: "mint", value: mintPrice ?? 0n });
-        alert("🎉 Direct transaction sent! Hash: " + txHash);
-        setTimeout(() => {
-          refetch();
-          refetchHasPlanet();
-        }, 1200);
-        setTimeout(() => {
-          refetch();
-          refetchHasPlanet();
-        }, 3000);
-      } catch (inner: any) {
-        console.error("Direct mint failed:", inner);
-        alert(`Mint failed: ${inner?.message ?? "Unknown error"}`);
+      // Do NOT fallback to a direct on-chain tx (would require gas).
+      // Handle common user rejection and meta-tx failures gracefully.
+      const msg = String(error?.message || "Unknown error");
+      const code = (error?.code ?? error?.cause?.code) as number | undefined;
+
+      if (code === 4001 || /User rejected/i.test(msg)) {
+        alert("Signature was rejected. Please approve the meta-transaction to mint gaslessly.");
+        return;
       }
+
+      alert(`Meta-transaction failed: ${msg}`);
+      console.error("Meta-tx mint failed:", error);
     }
   }
 
@@ -205,18 +201,20 @@ export default function RegisterCard() {
     }
   }
 
-  console.log("Planet info:", {
-    contractAddress: planetAddress,
-    hasAbi: !!planetAbi,
-    userAddress: address,
-    myPlanetId: myPlanetId?.toString(),
-    hasPlanetFromContract,
-    hasPlanet,
-    mintPrice: mintPrice?.toString(),
-    wrongChain,
-    activeChainId,
-    ENV_CHAIN_ID,
-  });
+  try {
+    console.log("Planet info:", {
+      contractAddress: planetAddress,
+      hasAbi: !!planetAbi,
+      userAddress: address,
+      myPlanetId: myPlanetId ? myPlanetId.toString() : undefined,
+      hasPlanetFromContract,
+      hasPlanet,
+      mintPrice: mintPrice ? mintPrice.toString() : undefined,
+      wrongChain,
+      activeChainId,
+      ENV_CHAIN_ID,
+    });
+  } catch {}
 
   return (
     <div className="max-w-md mx-auto p-6 rounded-2xl shadow bg-white/10 backdrop-blur-sm border border-white/20">
@@ -228,7 +226,9 @@ export default function RegisterCard() {
 
       {address && hasPlanet && (
         <div className="mt-4 p-4 rounded-lg bg-green-100 dark:bg-green-900">
-          <p className="text-green-800 dark:text-green-200">✅ You own Planet NFT #{myPlanetId!.toString()}!</p>
+          <p className="text-green-800 dark:text-green-200">
+            ✅ You own Planet NFT #{myPlanetId ? myPlanetId.toString() : "?"}!
+          </p>
           <button className="btn btn-success w-full mt-3" onClick={() => router.push("/game")}>
             🚀 Go to Game
           </button>

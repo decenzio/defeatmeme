@@ -48,10 +48,6 @@ const config: HardhatUserConfig = {
   networks: {
     // View the networks that are pre-configured.
     // If the network you are looking for is not here you can add new network settings
-    localhost: {
-      url: "http://127.0.0.1:8545",
-      chainId: 31337,
-    },
     hardhat: {
       forking: {
         url: `https://eth-mainnet.alchemyapi.io/v2/${providerApiKey}`,
