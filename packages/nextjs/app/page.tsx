@@ -23,7 +23,7 @@ export default function Home() {
           </div>
 
           {/* Cat Character Preview */}
-          <div className="mb-12 flex justify-center">
+          <div className="mb-6 flex flex-col items-center justify-center gap-6">
             <div className="relative">
               <Image
                 src="/cat/cat1.png"
@@ -34,6 +34,13 @@ export default function Home() {
               />
               <div className="absolute -inset-4 bg-gradient-to-r from-cyan-400/20 to-purple-500/20 rounded-full blur-xl" />
             </div>
+            {/* Primary CTA directly under the cat, larger */}
+            <button
+              className="btn btn-primary text-2xl md:text-3xl px-14 md:px-16 py-5 md:py-6 bg-gradient-to-r from-cyan-500 to-blue-600 border-0 hover:from-cyan-600 hover:to-blue-700 transform hover:scale-105 transition-all duration-200 shadow-2xl"
+              onClick={() => router.push("/home")}
+            >
+              🚀 START BLASTING
+            </button>
           </div>
 
           {/* Description */}
@@ -117,16 +124,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* CTA Buttons */}
-          <div className="space-y-4">
-            <button
-              className="btn btn-primary btn-lg text-xl px-12 py-4 bg-gradient-to-r from-cyan-500 to-blue-600 border-0 hover:from-cyan-600 hover:to-blue-700 transform hover:scale-105 transition-all duration-200 shadow-2xl"
-              onClick={() => router.push("/home")}
-            >
-              🚀 START BLASTING
-            </button>
-            <div className="text-white/70 text-sm">Connect your wallet to save high scores</div>
-          </div>
+          {/* Removed separate CTA block since primary button sits under the cat now */}
 
           {/* Features */}
           <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8 text-white">

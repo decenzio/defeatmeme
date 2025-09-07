@@ -91,6 +91,7 @@ export default function GamePage() {
   const [spawnPtr, setSpawnPtr] = useState(0);
   const [counts, setCounts] = useState<number[]>(() => new Array(MEME_IMAGES.length).fill(0));
   const [submitting, setSubmitting] = useState(false);
+  const [showEndPopup, setShowEndPopup] = useState(false);
 
   const projectilesRef = useRef<Projectile[]>([]);
   const enemiesRef = useRef<Enemy[]>([]);
@@ -100,7 +101,7 @@ export default function GamePage() {
 
   const totalScheduled = useMemo(() => (Array.isArray(schedule) ? schedule.length : 0), [schedule]);
   const totalKilled = useMemo(() => counts.reduce((a, b) => a + b, 0), [counts]);
-  const wavesTotal = 30;
+  const wavesTotal = 10;
   const waveSize = 5;
   const currentWave = useMemo(() => Math.min(wavesTotal, Math.floor(spawnPtr / waveSize)), [spawnPtr]);
   const progressPct = useMemo(
@@ -168,6 +169,7 @@ export default function GamePage() {
     enemiesRef.current = [];
     setCatPosition(50);
     setGameActive(false);
+    setShowEndPopup(false);
 
     // Prepare meta-tx for startGame()
     try {
@@ -547,6 +549,18 @@ export default function GamePage() {
     return allSpawned && noEnemiesOnScreen;
   }, [enemies.length, gameActive, schedule, spawnPtr]);
 
+  useEffect(() => {
+    if (canSubmit) {
+      setShowEndPopup(true);
+    }
+  }, [canSubmit]);
+
+  const goToBetting = useCallback(() => {
+    const el = document.getElementById("betting-section");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    setShowEndPopup(false);
+  }, []);
+
   return (
     <div className="min-h-screen">
       {/* Game Area */}
@@ -630,10 +644,43 @@ export default function GamePage() {
             <p className="text-white drop-shadow-lg">Use Arrow Keys or WASD to move! Press SPACE to shoot.</p>
           </div>
         </div>
+
+        {showEndPopup && (
+          <div className="absolute inset-0 z-30 bg-black/70 flex items-center justify-center">
+            <div className="bg-base-100/90 max-w-md w-[90%] rounded-xl p-6 text-center">
+              <h2 className="text-2xl font-bold mb-2">GG! Game complete 🎉</h2>
+              <p className="opacity-80 mb-5">
+                That was fun! Now let’s bet which meme will be most defeated by all players.
+              </p>
+              <div className="flex flex-wrap gap-3 justify-center">
+                <button
+                  className="px-4 py-2 rounded bg-emerald-600 text-white disabled:opacity-50"
+                  onClick={submit}
+                  disabled={!canSubmit || submitting}
+                >
+                  {submitting ? "Submitting..." : "Submit Results"}
+                </button>
+                <button className="px-4 py-2 rounded bg-blue-600 text-white" onClick={goToBetting}>
+                  Place Your Bet
+                </button>
+                <button
+                  className="px-4 py-2 rounded bg-gray-700 text-white disabled:opacity-50"
+                  onClick={startGame}
+                  disabled={submitting}
+                >
+                  Play Again
+                </button>
+                <button className="px-3 py-2 rounded bg-gray-500/60 text-white" onClick={() => setShowEndPopup(false)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Betting Section */}
-      <div className="py-8 px-4 bg-base-100">
+      <div className="py-8 px-4 bg-base-100" id="betting-section">
         <BettingCard />
       </div>
     </div>

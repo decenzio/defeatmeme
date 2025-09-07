@@ -37,13 +37,13 @@ export default function RegisterCard() {
   }) as { data: bigint | undefined; refetch: () => Promise<any> };
 
   // Check if user has a planet using the dedicated function
-  const { data: hasPlanetFromContract } = useReadContract({
+  const { data: hasPlanetFromContract, refetch: refetchHasPlanet } = useReadContract({
     address: planetAddress,
     abi: planetAbi,
     functionName: "hasPlanet",
     args: [address],
     query: { enabled: Boolean(address && planetAddress) },
-  }) as { data: boolean | undefined };
+  }) as { data: boolean | undefined; refetch: () => Promise<any> };
 
   // Read mint price (bigint)
   const { data: mintPrice } = useReadContract({
@@ -59,7 +59,7 @@ export default function RegisterCard() {
   });
 
   // Use the dedicated hasPlanet function first, fallback to ID check
-  const hasPlanet = hasPlanetFromContract ?? (!!myPlanetId && myPlanetId !== 0n);
+  const hasPlanet = Boolean(hasPlanetFromContract || (myPlanetId && myPlanetId !== 0n));
   const wrongChain = activeChainId !== ENV_CHAIN_ID;
 
   async function mintPlanet() {
@@ -151,15 +151,27 @@ export default function RegisterCard() {
       if (!exec.ok) throw new Error(j.error || "Relay failed");
 
       alert("🎉 Meta-transaction sent by relayer! Hash: " + j.hash);
-      setTimeout(() => refetch(), 1500);
-      setTimeout(() => refetch(), 3500);
+      setTimeout(() => {
+        refetch();
+        refetchHasPlanet();
+      }, 1200);
+      setTimeout(() => {
+        refetch();
+        refetchHasPlanet();
+      }, 3000);
     } catch (error: any) {
       console.error("Meta-tx mint failed, trying direct tx:", error);
       try {
         const txHash = await writePlanetAsync({ functionName: "mint", value: mintPrice ?? 0n });
         alert("🎉 Direct transaction sent! Hash: " + txHash);
-        setTimeout(() => refetch(), 1500);
-        setTimeout(() => refetch(), 3500);
+        setTimeout(() => {
+          refetch();
+          refetchHasPlanet();
+        }, 1200);
+        setTimeout(() => {
+          refetch();
+          refetchHasPlanet();
+        }, 3000);
       } catch (inner: any) {
         console.error("Direct mint failed:", inner);
         alert(`Mint failed: ${inner?.message ?? "Unknown error"}`);

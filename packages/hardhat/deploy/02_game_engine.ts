@@ -12,7 +12,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const forwarder = await deployments.get("MinimalForwarder");
   const engine = await deploy("GameEngine", {
     from: deployer,
-    args: [planet.address, 9, 30, 5, 40, forwarder.address],
+    args: [planet.address, 9, 10, 5, 40, forwarder.address],
     log: true,
     autoMine: true,
   });
