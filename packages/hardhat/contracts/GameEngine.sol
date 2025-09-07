@@ -107,8 +107,8 @@ contract GameEngine is ERC2771Context, Ownable {
         // Initialize Redstone price feeds (only if addresses are valid)
         if (_areValidAddresses()) {
             ethPriceFeed = AggregatorV3Interface(0x72266eFcdd0EC7110b44576e5413EF383950EEc2);
-            btcPriceFeed = AggregatorV3Interface(0xCfd39de761508A7aCb8C931b959127a1D9d0B3D4);
-            pufEthPriceFeed = AggregatorV3Interface(0xE7e734789954e6CffD8C295CBD0916A0A5747D27);
+            //btcPriceFeed = AggregatorV3Interface(0xCfd39de761508A7aCb8C931b959127a1D9d0B3D4);
+            //pufEthPriceFeed = AggregatorV3Interface(0xE7e734789954e6CffD8C295CBD0916A0A5747D27);
             priceFeedsEnabled = true;
         } else {
             priceFeedsEnabled = false;
@@ -131,6 +131,12 @@ contract GameEngine is ERC2771Context, Ownable {
 
     function disablePriceFeeds() external onlyOwner {
         priceFeedsEnabled = false;
+    }
+
+    /// @notice Update PlanetNFT contract reference in case of redeploys
+    function setPlanetNFT(address _planetNFT) external onlyOwner {
+        require(_planetNFT != address(0), "planet addr=0");
+        planetNFT = IPlanetNFT(_planetNFT);
     }
 
     // --- Helper Functions ---

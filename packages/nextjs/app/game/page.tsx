@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { encodeFunctionData } from "viem";
-import { useAccount, usePublicClient, useSignTypedData } from "wagmi";
+import { useAccount, useChainId, usePublicClient, useSignTypedData } from "wagmi";
 import deployedContracts from "~~/contracts/deployedContracts";
 import { useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-eth";
 
@@ -53,6 +53,7 @@ const gameEngine = deployedContracts[CHAIN_ID].GameEngine;
 
 export default function GamePage() {
   const { address } = useAccount();
+  const uiChainId = useChainId();
   const publicClient = usePublicClient();
   const { signTypedDataAsync } = useSignTypedData();
 
@@ -159,6 +160,10 @@ export default function GamePage() {
 
   const startGame = useCallback(async () => {
     if (!address) return;
+    if (uiChainId && uiChainId !== CHAIN_ID_NUM) {
+      alert(`Wrong network. Please switch to chain ${CHAIN_ID_NUM} and try again.`);
+      return;
+    }
     setCounts(new Array(MEME_IMAGES.length).fill(0));
     setEnemies([]);
     setProjectiles([]);

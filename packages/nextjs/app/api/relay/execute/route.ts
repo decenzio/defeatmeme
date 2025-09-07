@@ -1,6 +1,7 @@
 // app/api/relay/route.ts
 import { NextResponse } from "next/server";
 import deployedContracts from "../../../../contracts/deployedContracts";
+// import scaffoldConfig from "../../../../scaffold.config";
 import type { Abi, Hex } from "viem";
 import { createPublicClient, createWalletClient, decodeErrorResult, defineChain, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -126,6 +127,8 @@ export async function POST(req: Request) {
     const request = body.request as ForwardRequest;
     const signature = body.signature as Hex;
 
+    //const overrideUrl = (scaffoldConfig.rpcOverrides && scaffoldConfig.rpcOverrides[CHAIN_ID_NUM]) || undefined;
+    //const rpcUrl = process.env.RPC_URL || overrideUrl || "http://127.0.0.1:8545";
     const rpcUrl = process.env.RPC_URL || "http://127.0.0.1:8545";
     const relayerPk = process.env.RELAYER_PRIVATE_KEY as Hex | undefined;
     if (!relayerPk) {
@@ -237,6 +240,23 @@ export async function POST(req: Request) {
 
           if (tokenId === 0n) {
             return NextResponse.json({ error: "need planet: mint a Planet NFT first" }, { status: 400 });
+          }
+        }
+
+        // If targeting PlanetNFT directly (e.g. mint), ensure the selected forwarder is trusted by the NFT
+        if (String(planetAddr).toLowerCase() === String(request.to).toLowerCase()) {
+          try {
+            const trustedByPlanet = await publicClient.readContract({
+              address: planetAddr,
+              abi: GAME_ENGINE_VIEW_ABI, // uses only isTrustedForwarder
+              functionName: "isTrustedForwarder",
+              args: [forwarder],
+            });
+            if (!trustedByPlanet) {
+              return NextResponse.json({ error: "forwarder not trusted by PlanetNFT" }, { status: 400 });
+            }
+          } catch {
+            // ignore optional check failure
           }
         }
       }

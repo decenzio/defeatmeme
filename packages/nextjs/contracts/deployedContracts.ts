@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   48898: {
     GameEngine: {
-      address: "0x69F9B8d3Fa223A500AA94704DA7dFF43e0538f29",
+      address: "0xbE26447458f1AdC474e1AF3a4adb27e3B7b58A64",
       abi: [
         {
           inputs: [
@@ -691,6 +691,19 @@ const deployedContracts = {
           inputs: [
             {
               internalType: "address",
+              name: "_planetNFT",
+              type: "address",
+            },
+          ],
+          name: "setPlanetNFT",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
               name: "_ethPriceFeed",
               type: "address",
             },
@@ -835,7 +848,7 @@ const deployedContracts = {
         renounceOwnership: "@openzeppelin/contracts/access/Ownable.sol",
         transferOwnership: "@openzeppelin/contracts/access/Ownable.sol",
       },
-      deployedOnBlock: 8434572,
+      deployedOnBlock: 8441872,
     },
     MinimalForwarder: {
       address: "0xE7806B788DEDd5a76e8D7b392167d276C55a6840",
