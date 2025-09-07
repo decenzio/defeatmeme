@@ -58,21 +58,21 @@ export default function Home() {
                   href="https://www.zircuit.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-14 flex items-center"
+                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-16 flex items-center"
                 >
-                  <Image src="/partners/zircuit.png" alt="Zircuit" width={160} height={40} className="object-contain" />
+                  <Image src="/partners/zircuit.png" alt="Zircuit" width={192} height={48} className="object-contain" />
                 </a>
                 <a
                   href="https://buidlguidl.com"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-14 flex items-center"
+                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-16 flex items-center"
                 >
                   <Image
                     src="/partners/buidlguidl.svg"
                     alt="BuidlGuidl"
-                    width={180}
-                    height={40}
+                    width={216}
+                    height={48}
                     className="object-contain"
                   />
                 </a>
@@ -80,28 +80,28 @@ export default function Home() {
                   href="https://scaffoldeth.io"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-14 flex items-center gap-2"
+                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-16 flex items-center gap-2"
                 >
                   <Image
                     src="/partners/ethscfld2.svg"
                     alt="Scaffold-ETH 2"
-                    width={28}
-                    height={28}
-                    className="object-contain max-h-6 w-auto brightness-0"
+                    width={34}
+                    height={34}
+                    className="object-contain max-h-7 w-auto brightness-0"
                   />
-                  <p className="m-0 font-semibold text-neutral-900 text-xl leading-none">Scaffold-ETH 2</p>
+                  <p className="m-0 font-semibold text-neutral-900 text-2xl leading-none">Scaffold-ETH 2</p>
                 </a>
                 <a
                   href="https://redstone.finance"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-14 flex items-center"
+                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-16 flex items-center"
                 >
                   <Image
                     src="/partners/redstone.png"
                     alt="RedStone"
-                    width={180}
-                    height={40}
+                    width={216}
+                    height={48}
                     className="object-contain"
                   />
                 </a>
@@ -109,16 +109,30 @@ export default function Home() {
                   href="https://www.ethwarsaw.dev"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-14 flex items-center overflow-hidden gap-2"
+                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-16 flex items-center overflow-hidden gap-2"
                 >
                   <Image
                     src="/partners/ethwarsaw.svg"
                     alt="ETHWarsaw"
-                    width={140}
-                    height={40}
-                    className="object-contain max-h-10 w-auto brightness-0"
+                    width={168}
+                    height={48}
+                    className="object-contain max-h-12 w-auto brightness-0"
                   />
-                  <p className="m-0 font-semibold text-neutral-900 text-xl leading-none">ETHWarsaw</p>
+                  <p className="m-0 font-semibold text-neutral-900 text-2xl leading-none">ETHWarsaw</p>
+                </a>
+                <a
+                  href="https://golem.network"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-white rounded-md px-4 shadow-sm hover:shadow-md transition-shadow h-16 flex items-center"
+                >
+                  <Image
+                    src="/partners/golem.svg"
+                    alt="Golem"
+                    width={192}
+                    height={48}
+                    className="object-contain h-10 w-auto brightness-0"
+                  />
                 </a>
               </div>
             </div>
